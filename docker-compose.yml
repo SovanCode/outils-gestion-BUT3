@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: saas_outils_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - saas-net
+
+  app:
+    build: .
+    container_name: saas_app
+    ports:
+      - "5000:5000"
+    env_file:
+      - config.env
+    depends_on:
+      - mongodb
+    networks:
+      - saas-net
+
+volumes:
+  mongo_data:
+
+networks:
+  saas-net:
+    driver: bridge
