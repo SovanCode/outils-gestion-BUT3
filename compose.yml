@@ -1,0 +1,33 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: saas_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - saas-network
+
+  app:
+    build: .
+    container_name: saas_app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - config.env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - mongodb
+    networks:
+      - saas-network
+
+volumes:
+  mongo_data:
+
+networks:
+  saas-network:
+    driver: bridge
