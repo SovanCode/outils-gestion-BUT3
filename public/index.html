@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pulse SaaS - Connexion & Tableau Kanban Multi-Tenant</title>
+  
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Font Awesome pour les icônes -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Vue.js 3 via CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .kanban-col {
+      min-height: calc(100vh - 270px);
+    }
+    [v-cloak] { display: none; }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased select-none">
+  <div id="app" v-cloak class="min-h-full flex flex-col">
+
+    <!-- BARRE DE NOTIFICATION TOAST -->
+    <div v-if="toast.show" 
+         :class="toast.type === 'error' ? 'bg-rose-600 border-rose-500' : 'bg-emerald-600 border-emerald-500'"
+         class="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl border shadow-2xl flex items-center gap-3 text-white transition-all transform animate-bounce">
+      <i :class="toast.type === 'error' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-check'"></i>
+      <span class="text-sm font-medium">{{ toast.message }}</span>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ÉCRAN 1 : CONNEXION / AUTHENTIFICATION (DEMANDÉ À L'ORAL PAR LE PROF) -->
+    <!-- ====================================================================== -->
+    <div v-if="!currentUser" class="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
+      <div class="w-full max-w-xl">
+        
+        <!-- Logo & Titre SaaS -->
+        <div class="text-center mb-8">
+          <div class="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-400 items-center justify-center shadow-xl shadow-brand-500/20 text-white font-black text-2xl mb-4">
+            <i class="fa-solid fa-layer-group"></i>
+          </div>
+          <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            Pulse SaaS
+          </h1>
+          <p class="text-sm text-slate-400 mt-2">
+            Gestion de Projet & Tableau Kanban avec <strong>Isolation Multi-Entreprises</strong>
+          </p>
+        </div>
+
+        <!-- Boîte de Connexion -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
+          
+          <!-- Onglets Connexion / Inscription -->
+          <div class="flex border-b border-slate-800 mb-6">
+            <button @click="authMode = 'login'" 
+                    :class="authMode === 'login' ? 'text-indigo-400 border-b-2 border-indigo-500 font-bold' : 'text-slate-400 hover:text-slate-200'"
+                    class="flex-1 pb-3 text-sm transition text-center">
+              <i class="fa-solid fa-right-to-bracket mr-2"></i>Connexion
+            </button>
+            <button @click="authMode = 'register'" 
+                    :class="authMode === 'register' ? 'text-indigo-400 border-b-2 border-indigo-500 font-bold' : 'text-slate-400 hover:text-slate-200'"
+                    class="flex-1 pb-3 text-sm transition text-center">
+              <i class="fa-solid fa-user-plus mr-2"></i>Nouvel Espace / Inscription
+            </button>
+          </div>
+
+          <!-- 1. COMPTES DÉMO RAPIDES (1-CLIC POUR LE PROFESSEUR / CORRECTION) -->
+          <div v-if="authMode === 'login'" class="mb-6 bg-slate-950/70 border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-bolt text-amber-400"></i>
+                Comptes Démo (Connexion en 1 clic) :
+              </span>
+              <button @click="resetDemoData" :disabled="loading" class="text-[11px] text-slate-400 hover:text-indigo-400 flex items-center gap-1">
+                <i class="fa-solid fa-arrows-rotate" :class="{'fa-spin': loading}"></i> Reset base
+              </button>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button v-for="user in demoUsers" :key="user._id"
+                      @click="quickLogin(user.email)"
+                      class="text-left p-2.5 rounded-xl bg-slate-900 hover:bg-indigo-600/20 border border-slate-800 hover:border-indigo-500/40 transition group">
+                <div class="text-xs font-semibold text-white group-hover:text-indigo-300 flex items-center justify-between">
+                  <span>{{ user.nom }}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                    {{ user.role || 'Membre' }}
+                  </span>
+                </div>
+                <div class="text-[11px] text-indigo-400 truncate mt-0.5">
+                  🏢 {{ user.entrepriseId?.nom || 'Entreprise' }}
+                </div>
+                <div class="text-[10px] text-slate-500 truncate mt-0.5">
+                  {{ user.email }}
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- FORMULAIRE DE CONNEXION PAR EMAIL -->
+          <form v-if="authMode === 'login'" @submit.prevent="handleLogin" class="space-y-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1.5">Adresse email professionnelle</label>
+              <div class="relative">
+                <i class="fa-regular fa-envelope absolute left-3 top-3 text-slate-500 text-sm"></i>
+                <input v-model="loginEmail" required type="email" placeholder="alice.martin@techcorp.fr"
+                       class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+              </div>
+            </div>
+
+            <button type="submit" :disabled="loading"
+                    class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-arrow-right-to-bracket" :class="{'fa-spin': loading}"></i>
+              <span>Accéder à mon espace SaaS</span>
+            </button>
+          </form>
+
+          <!-- FORMULAIRE D'INSCRIPTION / CRÉATION D'ENTREPRISE -->
+          <form v-if="authMode === 'register'" @submit.prevent="handleRegister" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Votre Nom complet *</label>
+                <input v-model="registerForm.nom" required type="text" placeholder="Sophie Bernard"
+                       class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Email professionnel *</label>
+                <input v-model="registerForm.email" required type="email" placeholder="sophie@entreprise.com"
+                       class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Poste / Rôle</label>
+              <input v-model="registerForm.role" type="text" placeholder="Développeuse Fullstack, Chef de projet..."
+                     class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <!-- Choix Entreprise -->
+            <div class="pt-2 border-t border-slate-800">
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-xs font-bold text-slate-300">Rattachement Entreprise (Multi-Tenant)</label>
+                <button type="button" @click="registerForm.createNew = !registerForm.createNew" class="text-xs text-indigo-400 hover:underline">
+                  {{ registerForm.createNew ? 'Rejoindre une entreprise existante' : '+ Créer une nouvelle entreprise' }}
+                </button>
+              </div>
+
+              <!-- Créer une nouvelle entreprise -->
+              <div v-if="registerForm.createNew" class="space-y-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div>
+                  <label class="block text-[11px] text-slate-400 mb-1">Nom de la nouvelle entreprise *</label>
+                  <input v-model="registerForm.newEntrepriseNom" :required="registerForm.createNew" type="text" placeholder="Ex: CloudInnov SAS"
+                         class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-slate-400 mb-1">Secteur d'activité</label>
+                  <input v-model="registerForm.newEntrepriseSecteur" type="text" placeholder="Ex: Cybersécurité, SaaS..."
+                         class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+              </div>
+
+              <!-- Choisir une entreprise existante -->
+              <div v-else>
+                <select v-model="registerForm.entrepriseId" required
+                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                  <option value="" disabled>Sélectionner une entreprise existante</option>
+                  <option v-for="ent in entreprises" :key="ent._id" :value="ent._id">
+                    {{ ent.nom }} ({{ ent.secteur || 'SaaS' }})
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" :disabled="loading"
+                    class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-check"></i>
+              <span>Créer mon compte & Ouvrir mon espace</span>
+            </button>
+          </form>
+
+          <!-- Bandeau de rappel pédagogique -->
+          <div class="mt-6 pt-4 border-t border-slate-800/80 text-center">
+            <p class="text-xs text-slate-500 flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-shield-halved text-indigo-400"></i>
+              <span>Isolation stricte : Vous ne verrez que les projets et tâches de votre entreprise.</span>
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ÉCRAN 2 : APPLICATION SAAS PRINCIPALE (UTILISATEUR AUTHENTIFIÉ) -->
+    <!-- ====================================================================== -->
+    <template v-else>
+
+      <!-- EN-TÊTE PRINCIPAL (NAVBAR) -->
+      <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between h-16">
+            
+            <!-- Logo & Marque -->
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center shadow-lg shadow-brand-500/20 text-white font-black text-xl">
+                <i class="fa-solid fa-layer-group"></i>
+              </div>
+              <div>
+                <span class="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                  Pulse SaaS
+                </span>
+                <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-xs font-semibold rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  Kanban Multi-Tenant
+                </span>
+              </div>
+            </div>
+
+            <!-- BADGE TENANT ACTIF (ENTREPRISE DU COMPTE CONNECTÉ) -->
+            <div class="flex items-center gap-3 bg-slate-950/80 px-3.5 py-1.5 rounded-xl border border-slate-800">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:inline">Organisation :</span>
+              </div>
+              <span class="text-sm font-bold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-building text-xs text-indigo-400"></i>
+                {{ currentEntreprise ? currentEntreprise.nom : 'Chargement...' }}
+              </span>
+            </div>
+
+            <!-- ACTIONS UTILISATEUR & DECONNEXION -->
+            <div class="flex items-center gap-3">
+              <!-- Profil Utilisateur Connecté -->
+              <div class="hidden sm:flex items-center gap-2.5 pl-2">
+                <div class="w-8 h-8 rounded-full bg-indigo-600 text-xs font-bold text-white flex items-center justify-center shadow">
+                  {{ getInitials(currentUser.nom) }}
+                </div>
+                <div class="text-left text-xs">
+                  <div class="font-semibold text-slate-200">{{ currentUser.nom }}</div>
+                  <div class="text-[11px] text-slate-400">{{ currentUser.role || 'Collaborateur' }}</div>
+                </div>
+              </div>
+
+              <!-- Bouton Nouvelle Tâche -->
+              <button @click="openTaskModal()"
+                      class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i>
+                <span class="hidden md:inline">Nouvelle Tâche</span>
+              </button>
+
+              <!-- Bouton Déconnexion -->
+              <button @click="logout"
+                      title="Se déconnecter et changer d'utilisateur/entreprise"
+                      class="px-3 py-2 rounded-lg border border-slate-700 hover:border-rose-500/50 bg-slate-800 hover:bg-rose-500/10 text-xs font-medium text-slate-300 hover:text-rose-400 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                <span class="hidden md:inline">Déconnexion</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- BANDEAU D'ISOLATION LOGICIELLE STRICTE -->
+        <div class="bg-indigo-950/40 border-t border-indigo-900/30 px-4 py-1.5 text-center text-xs text-indigo-300 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-shield-halved text-indigo-400"></i>
+          <span>
+            <strong>Espace sécurisé de {{ currentEntreprise ? currentEntreprise.nom : '...' }} :</strong> 
+            Connecté en tant que <span class="font-bold text-white">{{ currentUser.nom }}</span>. 
+            Les données des autres organisations sont strictement inaccessibles.
+          </span>
+        </div>
+
+        <!-- BARRE DE NAVIGATION ONGLETS & FILTRE PROJET -->
+        <div class="bg-slate-900/90 border-t border-slate-800">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-3 py-2">
+            
+            <!-- Onglets -->
+            <nav class="flex space-x-1 sm:space-x-4">
+              <button @click="activeTab = 'kanban'"
+                      :class="activeTab === 'kanban' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2">
+                <i class="fa-solid fa-table-columns"></i>
+                <span>Tableau Kanban</span>
+              </button>
+
+              <button @click="activeTab = 'projets'"
+                      :class="activeTab === 'projets' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2">
+                <i class="fa-solid fa-diagram-project"></i>
+                <span>Projets ({{ projets.length }})</span>
+              </button>
+
+              <button @click="activeTab = 'utilisateurs'"
+                      :class="activeTab === 'utilisateurs' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2">
+                <i class="fa-solid fa-users"></i>
+                <span>Membres de l'équipe ({{ utilisateurs.length }})</span>
+              </button>
+
+              <button @click="activeTab = 'entreprises'"
+                      :class="activeTab === 'entreprises' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2">
+                <i class="fa-solid fa-building"></i>
+                <span>Mon Entreprise</span>
+              </button>
+            </nav>
+
+            <!-- Filtre Projet Actif pour la vue Kanban -->
+            <div v-if="activeTab === 'kanban'" class="flex items-center gap-2 w-full md:w-auto">
+              <span class="text-xs text-slate-400 font-medium">Filtrer par projet :</span>
+              <select v-model="selectedProjetId" @change="loadTasks"
+                      class="bg-slate-800 border border-slate-700 text-xs rounded-lg px-3 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                <option value="">Tous les projets de l'entreprise</option>
+                <option v-for="proj in projets" :key="proj._id" :value="proj._id">
+                  {{ proj.nom }}
+                </option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTENU PRINCIPAL DE L'ESPACE CONNECTÉ -->
+      <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- ========================================== -->
+        <!-- 1. VUE KANBAN -->
+        <!-- ========================================== -->
+        <section v-if="activeTab === 'kanban'">
+          
+          <!-- Header de la vue Kanban -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-3">
+                <span>Tableau de Bord Kanban</span>
+                <span v-if="selectedProjet" class="text-sm font-normal text-indigo-400 bg-indigo-950/60 px-2.5 py-1 rounded-md border border-indigo-800">
+                  Projet : {{ selectedProjet.nom }}
+                </span>
+              </h1>
+              <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                Faites glisser les tâches d'une colonne à une autre ou utilisez les boutons d'action rapide.
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button @click="openTaskModal()"
+                      class="px-3.5 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 text-xs font-semibold transition flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>Ajouter une tâche</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Les 3 Colonnes Kanban -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <!-- COLONNE 1 : À FAIRE (TODO) -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col kanban-col shadow-inner"
+                 @dragover.prevent
+                 @drop="onDrop($event, 'todo')">
+              <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-slate-400"></span>
+                  <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider">À faire</h2>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                  {{ tasksByStatus.todo.length }}
+                </span>
+              </div>
+
+              <!-- Liste des tâches TODO -->
+              <div class="flex-1 space-y-3 overflow-y-auto pr-1">
+                <div v-for="task in tasksByStatus.todo" :key="task._id"
+                     draggable="true"
+                     @dragstart="onDragStart($event, task)"
+                     class="bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 rounded-xl p-4 shadow-sm transition cursor-grab active:cursor-grabbing group">
+                  
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-900 text-indigo-300 truncate max-w-[150px]">
+                      <i class="fa-regular fa-folder mr-1"></i>{{ task.projetId?.nom || 'Sans projet' }}
+                    </span>
+                    <span :class="getPriorityBadgeClass(task.priorite)" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">
+                      {{ formatPriority(task.priorite) }}
+                    </span>
+                  </div>
+
+                  <h3 class="font-semibold text-sm text-slate-100 group-hover:text-indigo-300 transition">
+                    {{ task.titre }}
+                  </h3>
+                  <p v-if="task.description" class="text-xs text-slate-400 mt-1 line-clamp-2">
+                    {{ task.description }}
+                  </p>
+
+                  <div class="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <div class="w-6 h-6 rounded-full bg-indigo-700 text-[10px] font-bold text-white flex items-center justify-center shadow">
+                        {{ getInitials(task.assigneA?.nom) }}
+                      </div>
+                      <span class="text-xs text-slate-300 truncate max-w-[100px]" :title="task.assigneA?.nom || 'Non assigné'">
+                        {{ task.assigneA?.nom || 'Non assigné' }}
+                      </span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 opacity-80 group-hover:opacity-100">
+                      <button @click.stop="openTaskModal(task)" class="p-1 hover:text-indigo-400 text-slate-400 transition" title="Modifier">
+                        <i class="fa-solid fa-pen text-xs"></i>
+                      </button>
+                      <button @click.stop="deleteTask(task._id)" class="p-1 hover:text-rose-400 text-slate-400 transition" title="Supprimer">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                      </button>
+                      <button @click.stop="updateTaskStatus(task._id, 'in_progress')" 
+                              class="p-1 hover:text-emerald-400 text-slate-400 transition ml-1" title="Déplacer vers En cours">
+                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                <div v-if="tasksByStatus.todo.length === 0" class="h-28 rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-xs text-slate-500">
+                  Aucune tâche à faire
+                </div>
+              </div>
+
+              <button @click="openTaskModal({ statut: 'todo' })"
+                      class="mt-3 w-full py-2 rounded-lg border border-dashed border-slate-700 hover:border-slate-500 text-slate-400 hover:text-slate-200 text-xs font-medium transition flex items-center justify-center gap-1">
+                <i class="fa-solid fa-plus"></i> Ajouter une tâche
+              </button>
+            </div>
+
+            <!-- COLONNE 2 : EN COURS (IN_PROGRESS) -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col kanban-col shadow-inner"
+                 @dragover.prevent
+                 @drop="onDrop($event, 'in_progress')">
+              <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+                  <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider">En cours</h2>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  {{ tasksByStatus.in_progress.length }}
+                </span>
+              </div>
+
+              <div class="flex-1 space-y-3 overflow-y-auto pr-1">
+                <div v-for="task in tasksByStatus.in_progress" :key="task._id"
+                     draggable="true"
+                     @dragstart="onDragStart($event, task)"
+                     class="bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 rounded-xl p-4 shadow-sm transition cursor-grab active:cursor-grabbing group">
+                  
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-900 text-indigo-300 truncate max-w-[150px]">
+                      <i class="fa-regular fa-folder mr-1"></i>{{ task.projetId?.nom || 'Sans projet' }}
+                    </span>
+                    <span :class="getPriorityBadgeClass(task.priorite)" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">
+                      {{ formatPriority(task.priorite) }}
+                    </span>
+                  </div>
+
+                  <h3 class="font-semibold text-sm text-slate-100 group-hover:text-amber-300 transition">
+                    {{ task.titre }}
+                  </h3>
+                  <p v-if="task.description" class="text-xs text-slate-400 mt-1 line-clamp-2">
+                    {{ task.description }}
+                  </p>
+
+                  <div class="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <div class="w-6 h-6 rounded-full bg-amber-600 text-[10px] font-bold text-white flex items-center justify-center shadow">
+                        {{ getInitials(task.assigneA?.nom) }}
+                      </div>
+                      <span class="text-xs text-slate-300 truncate max-w-[100px]" :title="task.assigneA?.nom || 'Non assigné'">
+                        {{ task.assigneA?.nom || 'Non assigné' }}
+                      </span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 opacity-80 group-hover:opacity-100">
+                      <button @click.stop="updateTaskStatus(task._id, 'todo')" 
+                              class="p-1 hover:text-slate-300 text-slate-400 transition" title="Reculer vers À faire">
+                        <i class="fa-solid fa-arrow-left text-xs"></i>
+                      </button>
+                      <button @click.stop="openTaskModal(task)" class="p-1 hover:text-indigo-400 text-slate-400 transition" title="Modifier">
+                        <i class="fa-solid fa-pen text-xs"></i>
+                      </button>
+                      <button @click.stop="deleteTask(task._id)" class="p-1 hover:text-rose-400 text-slate-400 transition" title="Supprimer">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                      </button>
+                      <button @click.stop="updateTaskStatus(task._id, 'done')" 
+                              class="p-1 hover:text-emerald-400 text-slate-400 transition" title="Avancer vers Terminé">
+                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                <div v-if="tasksByStatus.in_progress.length === 0" class="h-28 rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-xs text-slate-500">
+                  Aucune tâche en cours
+                </div>
+              </div>
+
+              <button @click="openTaskModal({ statut: 'in_progress' })"
+                      class="mt-3 w-full py-2 rounded-lg border border-dashed border-slate-700 hover:border-slate-500 text-slate-400 hover:text-slate-200 text-xs font-medium transition flex items-center justify-center gap-1">
+                <i class="fa-solid fa-plus"></i> Ajouter une tâche
+              </button>
+            </div>
+
+            <!-- COLONNE 3 : TERMINÉ (DONE) -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col kanban-col shadow-inner"
+                 @dragover.prevent
+                 @drop="onDrop($event, 'done')">
+              <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-emerald-400"></span>
+                  <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider">Terminé</h2>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  {{ tasksByStatus.done.length }}
+                </span>
+              </div>
+
+              <div class="flex-1 space-y-3 overflow-y-auto pr-1">
+                <div v-for="task in tasksByStatus.done" :key="task._id"
+                     draggable="true"
+                     @dragstart="onDragStart($event, task)"
+                     class="bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-slate-600 rounded-xl p-4 shadow-sm transition cursor-grab active:cursor-grabbing group opacity-90 hover:opacity-100">
+                  
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-900 text-slate-400 truncate max-w-[150px]">
+                      <i class="fa-regular fa-folder mr-1"></i>{{ task.projetId?.nom || 'Sans projet' }}
+                    </span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/40">
+                      <i class="fa-solid fa-check mr-1"></i>Validé
+                    </span>
+                  </div>
+
+                  <h3 class="font-semibold text-sm text-slate-300 line-through decoration-slate-500">
+                    {{ task.titre }}
+                  </h3>
+                  <p v-if="task.description" class="text-xs text-slate-500 mt-1 line-clamp-2">
+                    {{ task.description }}
+                  </p>
+
+                  <div class="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <div class="w-6 h-6 rounded-full bg-emerald-700 text-[10px] font-bold text-white flex items-center justify-center shadow">
+                        {{ getInitials(task.assigneA?.nom) }}
+                      </div>
+                      <span class="text-xs text-slate-400 truncate max-w-[100px]" :title="task.assigneA?.nom || 'Non assigné'">
+                        {{ task.assigneA?.nom || 'Non assigné' }}
+                      </span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 opacity-80 group-hover:opacity-100">
+                      <button @click.stop="updateTaskStatus(task._id, 'in_progress')" 
+                              class="p-1 hover:text-amber-400 text-slate-400 transition" title="Reculer vers En cours">
+                        <i class="fa-solid fa-arrow-left text-xs"></i>
+                      </button>
+                      <button @click.stop="openTaskModal(task)" class="p-1 hover:text-indigo-400 text-slate-400 transition" title="Modifier">
+                        <i class="fa-solid fa-pen text-xs"></i>
+                      </button>
+                      <button @click.stop="deleteTask(task._id)" class="p-1 hover:text-rose-400 text-slate-400 transition" title="Supprimer">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                <div v-if="tasksByStatus.done.length === 0" class="h-28 rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-xs text-slate-500">
+                  Aucune tâche terminée
+                </div>
+              </div>
+
+              <button @click="openTaskModal({ statut: 'done' })"
+                      class="mt-3 w-full py-2 rounded-lg border border-dashed border-slate-700 hover:border-slate-500 text-slate-400 hover:text-slate-200 text-xs font-medium transition flex items-center justify-center gap-1">
+                <i class="fa-solid fa-plus"></i> Ajouter une tâche
+              </button>
+            </div>
+
+          </div>
+
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 2. VUE PROJETS -->
+        <!-- ========================================== -->
+        <section v-if="activeTab === 'projets'">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h1 class="text-2xl font-bold text-white">Gestion des Projets</h1>
+              <p class="text-sm text-slate-400">Espaces de travail rattachés à {{ currentEntreprise?.nom }}</p>
+            </div>
+            <button @click="openProjectModal()"
+                    class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
+              <i class="fa-solid fa-plus"></i>
+              <span>Nouveau Projet</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div v-for="proj in projets" :key="proj._id"
+                 class="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 transition flex flex-col justify-between">
+              <div>
+                <div class="flex items-start justify-between gap-3 mb-3">
+                  <h3 class="font-bold text-lg text-white">{{ proj.nom }}</h3>
+                  <div class="flex items-center gap-2">
+                    <button @click="openProjectModal(proj)" class="text-slate-400 hover:text-indigo-400 transition" title="Modifier">
+                      <i class="fa-solid fa-pen text-sm"></i>
+                    </button>
+                    <button @click="deleteProject(proj._id)" class="text-slate-400 hover:text-rose-400 transition" title="Supprimer">
+                      <i class="fa-solid fa-trash-can text-sm"></i>
+                    </button>
+                  </div>
+                </div>
+                <p class="text-xs text-slate-400 mb-6 leading-relaxed">
+                  {{ proj.description || 'Aucune description spécifiée.' }}
+                </p>
+              </div>
+
+              <div class="pt-4 border-t border-slate-800/80">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-slate-400">Équipe assignée ({{ proj.membres?.length || 0 }}) :</span>
+                  <button @click="filterByProjectAndOpenKanban(proj._id)" class="text-indigo-400 hover:underline font-semibold flex items-center gap-1">
+                    Voir Kanban <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                  </button>
+                </div>
+                <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <div v-for="m in proj.membres" :key="m._id"
+                       class="px-2 py-0.5 rounded-md bg-slate-800 text-[11px] text-slate-300 border border-slate-700 flex items-center gap-1.5">
+                    <i class="fa-solid fa-user text-[10px] text-indigo-400"></i>
+                    <span>{{ m.nom }}</span>
+                  </div>
+                  <span v-if="!proj.membres || proj.membres.length === 0" class="text-xs text-slate-600 italic">
+                    Aucun collaborateur rattaché
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="projets.length === 0" class="col-span-full py-16 text-center text-slate-500 border border-dashed border-slate-800 rounded-2xl">
+              <i class="fa-regular fa-folder-open text-4xl mb-3 text-slate-600"></i>
+              <p class="font-medium text-sm">Aucun projet dans cette entreprise.</p>
+              <button @click="openProjectModal()" class="mt-3 text-indigo-400 hover:underline text-xs font-semibold">
+                + Créer un premier projet
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 3. VUE COLLABORATEURS / ÉQUIPE -->
+        <!-- ========================================== -->
+        <section v-if="activeTab === 'utilisateurs'">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h1 class="text-2xl font-bold text-white">Équipe & Utilisateurs</h1>
+              <p class="text-sm text-slate-400">Collaborateurs exclusifs à {{ currentEntreprise?.nom }}</p>
+            </div>
+            <button @click="openUserModal()"
+                    class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
+              <i class="fa-solid fa-user-plus"></i>
+              <span>Ajouter un collaborateur</span>
+            </button>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm text-slate-300">
+                <thead class="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                  <tr>
+                    <th class="px-6 py-4 font-semibold">Collaborateur</th>
+                    <th class="px-6 py-4 font-semibold">Email</th>
+                    <th class="px-6 py-4 font-semibold">Rôle / Poste</th>
+                    <th class="px-6 py-4 font-semibold">Projets Assignés</th>
+                    <th class="px-6 py-4 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                  <tr v-for="user in utilisateurs" :key="user._id" class="hover:bg-slate-800/40 transition">
+                    <td class="px-6 py-4 font-medium text-white flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-full bg-indigo-600 text-xs font-bold text-white flex items-center justify-center">
+                        {{ getInitials(user.nom) }}
+                      </div>
+                      <div>
+                        <span>{{ user.nom }}</span>
+                        <span v-if="user._id === currentUser._id" class="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          Vous
+                        </span>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 text-slate-400">{{ user.email }}</td>
+                    <td class="px-6 py-4">
+                      <span class="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
+                        {{ user.role || 'Membre' }}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4">
+                      <div class="flex flex-wrap gap-1">
+                        <span v-for="p in user.projetsAssignes" :key="p._id"
+                              class="px-2 py-0.5 rounded text-[11px] bg-indigo-950 text-indigo-300 border border-indigo-800">
+                          {{ p.nom }}
+                        </span>
+                        <span v-if="!user.projetsAssignes || user.projetsAssignes.length === 0" class="text-xs text-slate-600 italic">
+                          Aucun projet
+                        </span>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                      <div class="flex items-center justify-end gap-3">
+                        <button @click="openUserModal(user)" class="text-slate-400 hover:text-indigo-400 transition" title="Modifier">
+                          <i class="fa-solid fa-pen text-sm"></i>
+                        </button>
+                        <button v-if="user._id !== currentUser._id" @click="deleteUser(user._id)" class="text-slate-400 hover:text-rose-400 transition" title="Supprimer">
+                          <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="utilisateurs.length === 0">
+                    <td colspan="5" class="px-6 py-12 text-center text-slate-500">
+                      Aucun collaborateur trouvé pour cette entreprise.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 4. VUE MON ENTREPRISE -->
+        <!-- ========================================== -->
+        <section v-if="activeTab === 'entreprises'">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h1 class="text-2xl font-bold text-white">Mon Organisation</h1>
+              <p class="text-sm text-slate-400">Paramètres et informations sur le tenant actif</p>
+            </div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-2xl shadow-xl">
+            <div class="flex items-center justify-between pb-6 border-b border-slate-800">
+              <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-2xl">
+                  <i class="fa-solid fa-building"></i>
+                </div>
+                <div>
+                  <h2 class="text-xl font-bold text-white">{{ currentEntreprise?.nom }}</h2>
+                  <p class="text-xs text-indigo-400">{{ currentEntreprise?.secteur || 'SaaS' }}</p>
+                </div>
+              </div>
+              <button @click="openEntrepriseModal(currentEntreprise)" class="px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-600 bg-slate-800 text-xs font-semibold text-slate-200 transition">
+                <i class="fa-solid fa-pen mr-1"></i> Modifier
+              </button>
+            </div>
+
+            <div class="py-6 space-y-4 text-sm text-slate-300">
+              <div>
+                <span class="text-xs text-slate-500 uppercase tracking-wider block mb-1">Description</span>
+                <p class="text-slate-300 text-xs leading-relaxed">
+                  {{ currentEntreprise?.description || 'Aucune description enregistrée.' }}
+                </p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800">
+                <div>
+                  <span class="text-xs text-slate-500 uppercase tracking-wider block mb-1">Date de création</span>
+                  <p class="text-xs font-semibold text-white">{{ formatDate(currentEntreprise?.dateCreation) }}</p>
+                </div>
+                <div>
+                  <span class="text-xs text-slate-500 uppercase tracking-wider block mb-1">Identifiant Tenant (Shard Key)</span>
+                  <p class="text-xs font-mono text-indigo-400 truncate">{{ currentEntreprise?._id }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-6 border-t border-slate-800 flex items-center justify-between">
+              <button @click="logout" class="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> Changer d'organisation / Se déconnecter
+              </button>
+              <button @click="deleteEntreprise(currentEntreprise?._id)" class="text-xs text-rose-400 hover:underline flex items-center gap-1 transition">
+                <i class="fa-solid fa-triangle-exclamation"></i> Supprimer définitivement l'organisation
+              </button>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+    </template>
+
+    <!-- ========================================== -->
+    <!-- MODALES DE FORMULAIRE (TÂCHE, PROJET, USER, ENT) -->
+    <!-- ========================================== -->
+
+    <!-- 1. MODALE TÂCHE -->
+    <div v-if="modals.task.show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+          <h2 class="text-lg font-bold text-white">
+            {{ modals.task.isEdit ? 'Modifier la Tâche' : 'Créer une Nouvelle Tâche' }}
+          </h2>
+          <button @click="modals.task.show = false" class="text-slate-400 hover:text-white transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <form @submit.prevent="saveTask" class="mt-4 space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Titre de la tâche *</label>
+            <input v-model="modals.task.form.titre" required type="text" placeholder="Ex: Développer l'API REST"
+                   class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Description</label>
+            <textarea v-model="modals.task.form.description" rows="3" placeholder="Détails, critères d'acceptation..."
+                      class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Projet rattaché *</label>
+              <select v-model="modals.task.form.projetId" required
+                      class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <option value="" disabled>Sélectionner un projet</option>
+                <option v-for="p in projets" :key="p._id" :value="p._id">{{ p.nom }}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Statut Kanban</label>
+              <select v-model="modals.task.form.statut"
+                      class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <option value="todo">À faire</option>
+                <option value="in_progress">En cours</option>
+                <option value="done">Terminé</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Priorité</label>
+              <select v-model="modals.task.form.priorite"
+                      class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <option value="low">Basse</option>
+                <option value="medium">Moyenne</option>
+                <option value="high">Haute / Urgente</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Assigner à</label>
+              <select v-model="modals.task.form.assigneA"
+                      class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <option :value="null">Non assigné</option>
+                <option v-for="u in utilisateurs" :key="u._id" :value="u._id">{{ u.nom }} ({{ u.role || 'Membre' }})</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <button type="button" @click="modals.task.show = false"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">
+              Annuler
+            </button>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow transition">
+              {{ modals.task.isEdit ? 'Mettre à jour' : 'Enregistrer la tâche' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 2. MODALE PROJET -->
+    <div v-if="modals.project.show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+          <h2 class="text-lg font-bold text-white">
+            {{ modals.project.isEdit ? 'Modifier le Projet' : 'Créer un Nouveau Projet' }}
+          </h2>
+          <button @click="modals.project.show = false" class="text-slate-400 hover:text-white transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <form @submit.prevent="saveProject" class="mt-4 space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Nom du projet *</label>
+            <input v-model="modals.project.form.nom" required type="text" placeholder="Ex: Refonte Frontend"
+                   class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Description</label>
+            <textarea v-model="modals.project.form.description" rows="3" placeholder="Objectifs du projet..."
+                      class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Membres assignés (maintenez Ctrl/Cmd pour sélectionner plusieurs)</label>
+            <select v-model="modals.project.form.membres" multiple
+                    class="w-full h-28 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+              <option v-for="u in utilisateurs" :key="u._id" :value="u._id">
+                {{ u.nom }} — {{ u.role || 'Collaborateur' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <button type="button" @click="modals.project.show = false"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">
+              Annuler
+            </button>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow transition">
+              {{ modals.project.isEdit ? 'Mettre à jour' : 'Créer le projet' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 3. MODALE UTILISATEUR -->
+    <div v-if="modals.user.show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+          <h2 class="text-lg font-bold text-white">
+            {{ modals.user.isEdit ? 'Modifier le Collaborateur' : 'Ajouter un Collaborateur' }}
+          </h2>
+          <button @click="modals.user.show = false" class="text-slate-400 hover:text-white transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <form @submit.prevent="saveUser" class="mt-4 space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Nom complet *</label>
+            <input v-model="modals.user.form.nom" required type="text" placeholder="Ex: Thomas Dubois"
+                   class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Adresse Email *</label>
+            <input v-model="modals.user.form.email" required type="email" placeholder="thomas.dubois@entreprise.fr"
+                   class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Poste / Rôle</label>
+            <input v-model="modals.user.form.role" type="text" placeholder="Ex: Ingénieur DevOps, Développeur Vue..."
+                   class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+
+          <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <button type="button" @click="modals.user.show = false"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">
+              Annuler
+            </button>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow transition">
+              {{ modals.user.isEdit ? 'Mettre à jour' : 'Ajouter le collaborateur' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 4. MODALE ENTREPRISE -->
+    <div v-if="modals.entreprise.show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+          <h2 class="text-lg font-bold text-white">
+            {{ modals.entreprise.isEdit ? 'Modifier l\'Entreprise' : 'Créer une Nouvelle Entreprise' }}
+          </h2>
+          <button @click="modals.entreprise.show = false" class="text-slate-400 hover:text-white transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <form @submit.prevent="saveEntreprise" class="mt-4 space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Nom de l'entreprise *</label>
+            <input v-model="modals.entreprise.form.nom" required type="text" placeholder="Ex: FinTech Nova"
+                   class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Secteur d'activité</label>
+            <input v-model="modals.entreprise.form.secteur" type="text" placeholder="Ex: Banque Digitale & Crypto"
+                   class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Description</label>
+            <textarea v-model="modals.entreprise.form.description" rows="3" placeholder="Présentation de l'entreprise..."
+                      class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <button type="button" @click="modals.entreprise.show = false"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">
+              Annuler
+            </button>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow transition">
+              {{ modals.entreprise.isEdit ? 'Mettre à jour' : 'Enregistrer' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SCRIPT LOGIQUE VUE.JS 3 AVEC AUTHENTIFICATION -->
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        // État Authentification
+        const currentUser = ref(null);
+        const currentEntreprise = ref(null);
+        const authMode = ref('login'); // 'login' ou 'register'
+        const loginEmail = ref('');
+        const demoUsers = ref([]);
+        const registerForm = ref({
+          nom: '',
+          email: '',
+          role: '',
+          entrepriseId: '',
+          createNew: false,
+          newEntrepriseNom: '',
+          newEntrepriseSecteur: ''
+        });
+
+        // Données du Tenant Actif
+        const entreprises = ref([]);
+        const projets = ref([]);
+        const utilisateurs = ref([]);
+        const taches = ref([]);
+
+        const selectedProjetId = ref('');
+        const activeTab = ref('kanban');
+        const loading = ref(false);
+
+        // Toast
+        const toast = ref({ show: false, message: '', type: 'success' });
+        const showToast = (message, type = 'success') => {
+          toast.value = { show: true, message, type };
+          setTimeout(() => { toast.value.show = false; }, 3500);
+        };
+
+        // Modales
+        const modals = ref({
+          task: { show: false, isEdit: false, id: null, form: { titre: '', description: '', projetId: '', statut: 'todo', priorite: 'medium', assigneA: null } },
+          project: { show: false, isEdit: false, id: null, form: { nom: '', description: '', membres: [] } },
+          user: { show: false, isEdit: false, id: null, form: { nom: '', email: '', role: '' } },
+          entreprise: { show: false, isEdit: false, id: null, form: { nom: '', secteur: '', description: '' } }
+        });
+
+        // Dérivées
+        const selectedProjet = computed(() => {
+          return projets.value.find(p => p._id === selectedProjetId.value) || null;
+        });
+
+        const tasksByStatus = computed(() => {
+          return {
+            todo: taches.value.filter(t => t.statut === 'todo'),
+            in_progress: taches.value.filter(t => t.statut === 'in_progress'),
+            done: taches.value.filter(t => t.statut === 'done')
+          };
+        });
+
+        // ==========================================
+        // GESTION AUTHENTIFICATION (LOGIN / REGISTER / LOGOUT)
+        // ==========================================
+
+        const loadDemoUsers = async () => {
+          try {
+            const res = await fetch('/api/auth/demo-users');
+            demoUsers.value = await res.json();
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        const quickLogin = async (email) => {
+          loginEmail.value = email;
+          await handleLogin();
+        };
+
+        const handleLogin = async () => {
+          if (!loginEmail.value) return;
+          loading.value = true;
+          try {
+            const res = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: loginEmail.value })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            currentUser.value = data.user;
+            currentEntreprise.value = data.entreprise;
+            localStorage.setItem('pulse_saas_user', JSON.stringify({ userId: data.user._id, email: data.user.email }));
+
+            showToast(`Bienvenue, ${data.user.nom} !`);
+            await loadTenantData();
+          } catch (err) {
+            showToast(err.message, 'error');
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const handleRegister = async () => {
+          loading.value = true;
+          try {
+            const res = await fetch('/api/auth/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(registerForm.value)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            currentUser.value = data.user;
+            currentEntreprise.value = data.entreprise;
+            localStorage.setItem('pulse_saas_user', JSON.stringify({ userId: data.user._id, email: data.user.email }));
+
+            showToast('Compte et espace créés avec succès !');
+            await loadTenantData();
+            await loadEntreprises();
+          } catch (err) {
+            showToast(err.message, 'error');
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const logout = () => {
+          currentUser.value = null;
+          currentEntreprise.value = null;
+          localStorage.removeItem('pulse_saas_user');
+          projets.value = [];
+          utilisateurs.value = [];
+          taches.value = [];
+          loadDemoUsers();
+          showToast('Déconnexion effectuée');
+        };
+
+        // ==========================================
+        // CHARGEMENT DONNÉES DU TENANT CLOISONNÉ
+        // ==========================================
+
+        const loadEntreprises = async () => {
+          try {
+            const res = await fetch('/api/entreprises');
+            entreprises.value = await res.json();
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        const loadTenantData = async () => {
+          if (!currentEntreprise.value) return;
+          const entId = currentEntreprise.value._id;
+          loading.value = true;
+          try {
+            const [pRes, uRes] = await Promise.all([
+              fetch(`/api/projets?entrepriseId=${entId}`),
+              fetch(`/api/utilisateurs?entrepriseId=${entId}`)
+            ]);
+            projets.value = await pRes.json();
+            utilisateurs.value = await uRes.json();
+            await loadTasks();
+          } catch (err) {
+            showToast('Erreur chargement des données', 'error');
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const loadTasks = async () => {
+          if (!currentEntreprise.value) return;
+          let url = `/api/taches?entrepriseId=${currentEntreprise.value._id}`;
+          if (selectedProjetId.value) {
+            url += `&projetId=${selectedProjetId.value}`;
+          }
+          try {
+            const res = await fetch(url);
+            taches.value = await res.json();
+          } catch (err) {
+            showToast('Erreur chargement des tâches', 'error');
+          }
+        };
+
+        const filterByProjectAndOpenKanban = (projId) => {
+          selectedProjetId.value = projId;
+          activeTab.value = 'kanban';
+          loadTasks();
+        };
+
+        // ==========================================
+        // GESTION TÂCHES
+        // ==========================================
+        const openTaskModal = (task = null) => {
+          if (task && task._id) {
+            modals.value.task = {
+              show: true,
+              isEdit: true,
+              id: task._id,
+              form: {
+                titre: task.titre,
+                description: task.description || '',
+                projetId: task.projetId?._id || task.projetId || '',
+                statut: task.statut || 'todo',
+                priorite: task.priorite || 'medium',
+                assigneA: task.assigneA?._id || task.assigneA || null
+              }
+            };
+          } else {
+            modals.value.task = {
+              show: true,
+              isEdit: false,
+              id: null,
+              form: {
+                titre: '',
+                description: '',
+                projetId: selectedProjetId.value || (projets.value[0]?._id || ''),
+                statut: task?.statut || 'todo',
+                priorite: 'medium',
+                assigneA: currentUser.value?._id || null
+              }
+            };
+          }
+        };
+
+        const saveTask = async () => {
+          const form = modals.value.task.form;
+          const body = {
+            entrepriseId: currentEntreprise.value._id,
+            projetId: form.projetId,
+            titre: form.titre,
+            description: form.description,
+            statut: form.statut,
+            priorite: form.priorite,
+            assigneA: form.assigneA || null
+          };
+
+          try {
+            let res;
+            if (modals.value.task.isEdit) {
+              res = await fetch(`/api/taches/${modals.value.task.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+              });
+            } else {
+              res = await fetch('/api/taches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+              });
+            }
+
+            if (!res.ok) throw new Error((await res.json()).error);
+            showToast(modals.value.task.isEdit ? 'Tâche mise à jour' : 'Tâche créée');
+            modals.value.task.show = false;
+            await loadTasks();
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        };
+
+        const updateTaskStatus = async (taskId, newStatus) => {
+          try {
+            const res = await fetch(`/api/taches/${taskId}/statut`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ statut: newStatus })
+            });
+            if (!res.ok) throw new Error();
+            const index = taches.value.findIndex(t => t._id === taskId);
+            if (index !== -1) {
+              taches.value[index].statut = newStatus;
+            }
+          } catch (err) {
+            showToast('Erreur mise à jour statut', 'error');
+          }
+        };
+
+        const deleteTask = async (taskId) => {
+          if (!confirm('Supprimer cette tâche ?')) return;
+          try {
+            const res = await fetch(`/api/taches/${taskId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error();
+            taches.value = taches.value.filter(t => t._id !== taskId);
+            showToast('Tâche supprimée');
+          } catch (err) {
+            showToast('Erreur suppression tâche', 'error');
+          }
+        };
+
+        // DRAG & DROP HTML5
+        const onDragStart = (event, task) => {
+          event.dataTransfer.setData('text/plain', task._id);
+          event.dataTransfer.effectAllowed = 'move';
+        };
+
+        const onDrop = (event, targetStatus) => {
+          const taskId = event.dataTransfer.getData('text/plain');
+          if (taskId) {
+            updateTaskStatus(taskId, targetStatus);
+          }
+        };
+
+        // ==========================================
+        // GESTION PROJETS
+        // ==========================================
+        const openProjectModal = (proj = null) => {
+          if (proj) {
+            modals.value.project = {
+              show: true,
+              isEdit: true,
+              id: proj._id,
+              form: {
+                nom: proj.nom,
+                description: proj.description || '',
+                membres: proj.membres?.map(m => m._id || m) || []
+              }
+            };
+          } else {
+            modals.value.project = {
+              show: true,
+              isEdit: false,
+              id: null,
+              form: { nom: '', description: '', membres: [currentUser.value._id] }
+            };
+          }
+        };
+
+        const saveProject = async () => {
+          const form = modals.value.project.form;
+          const body = {
+            entrepriseId: currentEntreprise.value._id,
+            nom: form.nom,
+            description: form.description,
+            membres: form.membres
+          };
+
+          try {
+            let res;
+            if (modals.value.project.isEdit) {
+              res = await fetch(`/api/projets/${modals.value.project.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+              });
+            } else {
+              res = await fetch('/api/projets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+              });
+            }
+
+            if (!res.ok) throw new Error((await res.json()).error);
+            showToast(modals.value.project.isEdit ? 'Projet mis à jour' : 'Projet créé');
+            modals.value.project.show = false;
+            await loadTenantData();
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        };
+
+        const deleteProject = async (projId) => {
+          if (!confirm('Supprimer ce projet ? Toutes ses tâches Kanban seront également supprimées.')) return;
+          try {
+            const res = await fetch(`/api/projets/${projId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error();
+            showToast('Projet et tâches supprimés');
+            if (selectedProjetId.value === projId) selectedProjetId.value = '';
+            await loadTenantData();
+          } catch (err) {
+            showToast('Erreur suppression projet', 'error');
+          }
+        };
+
+        // ==========================================
+        // GESTION UTILISATEURS
+        // ==========================================
+        const openUserModal = (u = null) => {
+          if (u) {
+            modals.value.user = {
+              show: true,
+              isEdit: true,
+              id: u._id,
+              form: { nom: u.nom, email: u.email, role: u.role || '' }
+            };
+          } else {
+            modals.value.user = {
+              show: true,
+              isEdit: false,
+              id: null,
+              form: { nom: '', email: '', role: '' }
+            };
+          }
+        };
+
+        const saveUser = async () => {
+          const form = modals.value.user.form;
+          const body = {
+            entrepriseId: currentEntreprise.value._id,
+            nom: form.nom,
+            email: form.email,
+            role: form.role
+          };
+
+          try {
+            let res;
+            if (modals.value.user.isEdit) {
+              res = await fetch(`/api/utilisateurs/${modals.value.user.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+              });
+            } else {
+              res = await fetch('/api/utilisateurs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+              });
+            }
+
+            if (!res.ok) throw new Error((await res.json()).error);
+            showToast(modals.value.user.isEdit ? 'Collaborateur mis à jour' : 'Collaborateur ajouté');
+            modals.value.user.show = false;
+            await loadTenantData();
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        };
+
+        const deleteUser = async (userId) => {
+          if (!confirm('Supprimer cet utilisateur ? Il sera retiré des projets et ses tâches seront désassignées.')) return;
+          try {
+            const res = await fetch(`/api/utilisateurs/${userId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error();
+            showToast('Utilisateur supprimé');
+            await loadTenantData();
+          } catch (err) {
+            showToast('Erreur suppression utilisateur', 'error');
+          }
+        };
+
+        // ==========================================
+        // GESTION ENTREPRISES
+        // ==========================================
+        const openEntrepriseModal = (ent = null) => {
+          if (ent) {
+            modals.value.entreprise = {
+              show: true,
+              isEdit: true,
+              id: ent._id,
+              form: { nom: ent.nom, secteur: ent.secteur || '', description: ent.description || '' }
+            };
+          }
+        };
+
+        const saveEntreprise = async () => {
+          const form = modals.value.entreprise.form;
+          try {
+            const res = await fetch(`/api/entreprises/${modals.value.entreprise.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(form)
+            });
+            if (!res.ok) throw new Error((await res.json()).error);
+            const updated = await res.json();
+            currentEntreprise.value = updated;
+            showToast('Entreprise mise à jour');
+            modals.value.entreprise.show = false;
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        };
+
+        const deleteEntreprise = async (entId) => {
+          if (!confirm('SUPPRESSION EN CASCADE :\nSupprimer définitivement cette entreprise supprimera TOUS ses projets, utilisateurs et tâches. Continuer ?')) return;
+          try {
+            const res = await fetch(`/api/entreprises/${entId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error();
+            showToast('Organisation supprimée');
+            logout();
+          } catch (err) {
+            showToast('Erreur suppression organisation', 'error');
+          }
+        };
+
+        const resetDemoData = async () => {
+          if (!confirm('Réinitialiser toutes les données de test ?')) return;
+          loading.value = true;
+          try {
+            const res = await fetch('/api/seed', { method: 'POST' });
+            if (!res.ok) throw new Error();
+            showToast('Données démo réinitialisées !');
+            await loadDemoUsers();
+            await loadEntreprises();
+            if (currentUser.value) {
+              logout();
+            }
+          } catch (err) {
+            showToast('Erreur réinitialisation', 'error');
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        // Formats UI
+        const getInitials = (name) => {
+          if (!name) return '?';
+          return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+        };
+
+        const formatPriority = (priority) => {
+          switch (priority) {
+            case 'high': return 'Urgente';
+            case 'medium': return 'Moyenne';
+            case 'low': return 'Basse';
+            default: return 'Normale';
+          }
+        };
+
+        const getPriorityBadgeClass = (priority) => {
+          switch (priority) {
+            case 'high': return 'bg-rose-950/80 text-rose-400 border border-rose-800/50';
+            case 'medium': return 'bg-amber-950/80 text-amber-400 border border-amber-800/50';
+            case 'low': return 'bg-slate-900 text-slate-400 border border-slate-700/60';
+            default: return 'bg-slate-900 text-slate-400 border border-slate-700/60';
+          }
+        };
+
+        const formatDate = (dateStr) => {
+          if (!dateStr) return '';
+          return new Date(dateStr).toLocaleDateString('fr-FR');
+        };
+
+        // Initialisation & Restauration de session
+        onMounted(async () => {
+          await loadDemoUsers();
+          await loadEntreprises();
+
+          const savedSession = localStorage.getItem('pulse_saas_user');
+          if (savedSession) {
+            try {
+              const { userId } = JSON.parse(savedSession);
+              const res = await fetch(`/api/auth/me?userId=${userId}`);
+              if (res.ok) {
+                const data = await res.json();
+                currentUser.value = data.user;
+                currentEntreprise.value = data.entreprise;
+                await loadTenantData();
+              } else {
+                localStorage.removeItem('pulse_saas_user');
+              }
+            } catch (e) {
+              localStorage.removeItem('pulse_saas_user');
+            }
+          }
+        });
+
+        return {
+          currentUser,
+          currentEntreprise,
+          authMode,
+          loginEmail,
+          demoUsers,
+          registerForm,
+          entreprises,
+          projets,
+          utilisateurs,
+          taches,
+          selectedProjetId,
+          activeTab,
+          loading,
+          toast,
+          modals,
+          selectedProjet,
+          tasksByStatus,
+          quickLogin,
+          handleLogin,
+          handleRegister,
+          logout,
+          loadTasks,
+          filterByProjectAndOpenKanban,
+          openTaskModal,
+          saveTask,
+          updateTaskStatus,
+          deleteTask,
+          onDragStart,
+          onDrop,
+          openProjectModal,
+          saveProject,
+          deleteProject,
+          openUserModal,
+          saveUser,
+          deleteUser,
+          openEntrepriseModal,
+          saveEntreprise,
+          deleteEntreprise,
+          resetDemoData,
+          getInitials,
+          formatPriority,
+          getPriorityBadgeClass,
+          formatDate
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+node_modules
+.git
+.gitignore
+*.log
+README.md
+Dossier_Specifications_Fonctionnelles_et_Techniques.pdf
+SPECIFICATION_FONCTIONNELLE.md
+SPECIFICATION_TECHNIQUE.md
+
