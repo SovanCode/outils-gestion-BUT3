@@ -425,17 +425,46 @@
                     {{ task.description }}
                   </p>
 
+                  <!-- Badge Dépendances & Alerte de blocage -->
+                  <div v-if="task.dependances && task.dependances.length > 0" class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                    <span v-if="isTaskBlocked(task)" 
+                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                          :title="'Bloquée par : ' + getBlockedReason(task)">
+                      <i class="fa-solid fa-lock text-[9px]"></i> Bloquée ({{ getUnfinishedDeps(task).length }})
+                    </span>
+                    <span v-else 
+                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      <i class="fa-solid fa-lock-open text-[9px]"></i> Débloquée
+                    </span>
+                    <span class="text-[10px] text-slate-500">
+                      {{ task.dependances.length }} dépendance{{ task.dependances.length > 1 ? 's' : '' }}
+                    </span>
+                  </div>
+
                   <div class="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div class="w-6 h-6 rounded-full bg-indigo-700 text-[10px] font-bold text-white flex items-center justify-center shadow">
-                        {{ getInitials(task.assigneA?.nom) }}
+                    <!-- Collaborateurs assignés multiples -->
+                    <div class="flex items-center gap-1.5 flex-wrap max-w-[170px]">
+                      <div v-if="getTaskAssignees(task).length > 0" class="flex items-center -space-x-1.5 overflow-hidden">
+                        <div v-for="user in getTaskAssignees(task).slice(0, 3)" :key="user._id"
+                             :title="user.nom + (user.role ? ' (' + user.role + ')' : '')"
+                             class="w-6 h-6 rounded-full bg-indigo-700 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-slate-800 shadow">
+                          {{ getInitials(user.nom) }}
+                        </div>
+                        <div v-if="getTaskAssignees(task).length > 3" 
+                             class="w-6 h-6 rounded-full bg-slate-700 text-[9px] font-bold text-slate-200 flex items-center justify-center ring-2 ring-slate-800"
+                             :title="'+' + (getTaskAssignees(task).length - 3) + ' autres'">
+                          +{{ getTaskAssignees(task).length - 3 }}
+                        </div>
                       </div>
-                      <span class="text-xs text-slate-300 truncate max-w-[100px]" :title="task.assigneA?.nom || 'Non assigné'">
-                        {{ task.assigneA?.nom || 'Non assigné' }}
+                      <span class="text-xs text-slate-300 truncate max-w-[100px]" :title="getTaskAssigneesNames(task)">
+                        {{ getTaskAssigneesNames(task) }}
                       </span>
                     </div>
 
                     <div class="flex items-center gap-1.5 opacity-80 group-hover:opacity-100">
+                      <button @click.stop="openTaskLogsModal(task)" class="p-1 hover:text-amber-400 text-slate-400 transition" title="Historique des modifications / Logs">
+                        <i class="fa-solid fa-clock-rotate-left text-xs"></i>
+                      </button>
                       <button @click.stop="openTaskModal(task)" class="p-1 hover:text-indigo-400 text-slate-400 transition" title="Modifier">
                         <i class="fa-solid fa-pen text-xs"></i>
                       </button>
@@ -443,7 +472,10 @@
                         <i class="fa-solid fa-trash-can text-xs"></i>
                       </button>
                       <button @click.stop="updateTaskStatus(task._id, 'in_progress')" 
-                              class="p-1 hover:text-emerald-400 text-slate-400 transition ml-1" title="Déplacer vers En cours">
+                              :disabled="isTaskBlocked(task)"
+                              :class="{'opacity-30 cursor-not-allowed': isTaskBlocked(task)}"
+                              class="p-1 hover:text-emerald-400 text-slate-400 transition ml-1" 
+                              :title="isTaskBlocked(task) ? ('Impossible de déplacer : ' + getBlockedReason(task)) : 'Déplacer vers En cours'">
                         <i class="fa-solid fa-arrow-right text-xs"></i>
                       </button>
                     </div>
@@ -498,17 +530,46 @@
                     {{ task.description }}
                   </p>
 
+                  <!-- Badge Dépendances & Alerte de blocage -->
+                  <div v-if="task.dependances && task.dependances.length > 0" class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                    <span v-if="isTaskBlocked(task)" 
+                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                          :title="'Bloquée par : ' + getBlockedReason(task)">
+                      <i class="fa-solid fa-lock text-[9px]"></i> Bloquée ({{ getUnfinishedDeps(task).length }})
+                    </span>
+                    <span v-else 
+                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      <i class="fa-solid fa-lock-open text-[9px]"></i> Débloquée
+                    </span>
+                    <span class="text-[10px] text-slate-500">
+                      {{ task.dependances.length }} dépendance{{ task.dependances.length > 1 ? 's' : '' }}
+                    </span>
+                  </div>
+
                   <div class="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div class="w-6 h-6 rounded-full bg-amber-600 text-[10px] font-bold text-white flex items-center justify-center shadow">
-                        {{ getInitials(task.assigneA?.nom) }}
+                    <!-- Collaborateurs assignés multiples -->
+                    <div class="flex items-center gap-1.5 flex-wrap max-w-[170px]">
+                      <div v-if="getTaskAssignees(task).length > 0" class="flex items-center -space-x-1.5 overflow-hidden">
+                        <div v-for="user in getTaskAssignees(task).slice(0, 3)" :key="user._id"
+                             :title="user.nom + (user.role ? ' (' + user.role + ')' : '')"
+                             class="w-6 h-6 rounded-full bg-amber-600 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-slate-800 shadow">
+                          {{ getInitials(user.nom) }}
+                        </div>
+                        <div v-if="getTaskAssignees(task).length > 3" 
+                             class="w-6 h-6 rounded-full bg-slate-700 text-[9px] font-bold text-slate-200 flex items-center justify-center ring-2 ring-slate-800"
+                             :title="'+' + (getTaskAssignees(task).length - 3) + ' autres'">
+                          +{{ getTaskAssignees(task).length - 3 }}
+                        </div>
                       </div>
-                      <span class="text-xs text-slate-300 truncate max-w-[100px]" :title="task.assigneA?.nom || 'Non assigné'">
-                        {{ task.assigneA?.nom || 'Non assigné' }}
+                      <span class="text-xs text-slate-300 truncate max-w-[100px]" :title="getTaskAssigneesNames(task)">
+                        {{ getTaskAssigneesNames(task) }}
                       </span>
                     </div>
 
                     <div class="flex items-center gap-1.5 opacity-80 group-hover:opacity-100">
+                      <button @click.stop="openTaskLogsModal(task)" class="p-1 hover:text-amber-400 text-slate-400 transition" title="Historique des modifications / Logs">
+                        <i class="fa-solid fa-clock-rotate-left text-xs"></i>
+                      </button>
                       <button @click.stop="updateTaskStatus(task._id, 'todo')" 
                               class="p-1 hover:text-slate-300 text-slate-400 transition" title="Reculer vers À faire">
                         <i class="fa-solid fa-arrow-left text-xs"></i>
@@ -520,7 +581,10 @@
                         <i class="fa-solid fa-trash-can text-xs"></i>
                       </button>
                       <button @click.stop="updateTaskStatus(task._id, 'done')" 
-                              class="p-1 hover:text-emerald-400 text-slate-400 transition" title="Avancer vers Terminé">
+                              :disabled="isTaskBlocked(task)"
+                              :class="{'opacity-30 cursor-not-allowed': isTaskBlocked(task)}"
+                              class="p-1 hover:text-emerald-400 text-slate-400 transition" 
+                              :title="isTaskBlocked(task) ? ('Impossible de déplacer : ' + getBlockedReason(task)) : 'Avancer vers Terminé'">
                         <i class="fa-solid fa-arrow-right text-xs"></i>
                       </button>
                     </div>
@@ -575,17 +639,37 @@
                     {{ task.description }}
                   </p>
 
+                  <!-- Badge Dépendances & Alerte de blocage -->
+                  <div v-if="task.dependances && task.dependances.length > 0" class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      <i class="fa-solid fa-check text-[9px]"></i> {{ task.dependances.length }} dépendance{{ task.dependances.length > 1 ? 's' : '' }}
+                    </span>
+                  </div>
+
                   <div class="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div class="w-6 h-6 rounded-full bg-emerald-700 text-[10px] font-bold text-white flex items-center justify-center shadow">
-                        {{ getInitials(task.assigneA?.nom) }}
+                    <!-- Collaborateurs assignés multiples -->
+                    <div class="flex items-center gap-1.5 flex-wrap max-w-[170px]">
+                      <div v-if="getTaskAssignees(task).length > 0" class="flex items-center -space-x-1.5 overflow-hidden">
+                        <div v-for="user in getTaskAssignees(task).slice(0, 3)" :key="user._id"
+                             :title="user.nom + (user.role ? ' (' + user.role + ')' : '')"
+                             class="w-6 h-6 rounded-full bg-emerald-700 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-slate-800 shadow">
+                          {{ getInitials(user.nom) }}
+                        </div>
+                        <div v-if="getTaskAssignees(task).length > 3" 
+                             class="w-6 h-6 rounded-full bg-slate-700 text-[9px] font-bold text-slate-200 flex items-center justify-center ring-2 ring-slate-800"
+                             :title="'+' + (getTaskAssignees(task).length - 3) + ' autres'">
+                          +{{ getTaskAssignees(task).length - 3 }}
+                        </div>
                       </div>
-                      <span class="text-xs text-slate-400 truncate max-w-[100px]" :title="task.assigneA?.nom || 'Non assigné'">
-                        {{ task.assigneA?.nom || 'Non assigné' }}
+                      <span class="text-xs text-slate-400 truncate max-w-[100px]" :title="getTaskAssigneesNames(task)">
+                        {{ getTaskAssigneesNames(task) }}
                       </span>
                     </div>
 
                     <div class="flex items-center gap-1.5 opacity-80 group-hover:opacity-100">
+                      <button @click.stop="openTaskLogsModal(task)" class="p-1 hover:text-amber-400 text-slate-400 transition" title="Historique des modifications / Logs">
+                        <i class="fa-solid fa-clock-rotate-left text-xs"></i>
+                      </button>
                       <button @click.stop="updateTaskStatus(task._id, 'in_progress')" 
                               class="p-1 hover:text-amber-400 text-slate-400 transition" title="Reculer vers En cours">
                         <i class="fa-solid fa-arrow-left text-xs"></i>
@@ -886,12 +970,68 @@
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Assigner à</label>
-              <select v-model="modals.task.form.assigneA"
-                      class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
-                <option :value="null">Non assigné</option>
-                <option v-for="u in utilisateurs" :key="u._id" :value="u._id">{{ u.nom }} ({{ u.role || 'Membre' }})</option>
-              </select>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Date d'échéance (optionnel)</label>
+              <input v-model="modals.task.form.dateEcheance" type="date"
+                     class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+            </div>
+          </div>
+
+          <!-- Assigner à (Multi-sélection) -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-medium text-slate-300">
+                Assigner à (sélectionnez plusieurs personnes du projet)
+              </label>
+              <span class="text-[10px] text-slate-400">
+                {{ modals.task.form.assigneA.length }} sélectionné(s)
+              </span>
+            </div>
+            <div class="max-h-36 overflow-y-auto bg-slate-950 border border-slate-700 rounded-lg p-2 space-y-1">
+              <label v-for="u in projectCollaborators" :key="u._id"
+                     class="flex items-center gap-2 p-1.5 rounded hover:bg-slate-800/60 cursor-pointer text-xs transition">
+                <input type="checkbox" :value="u._id" v-model="modals.task.form.assigneA"
+                       class="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4">
+                <div class="w-5 h-5 rounded-full bg-indigo-700 text-[9px] font-bold text-white flex items-center justify-center">
+                  {{ getInitials(u.nom) }}
+                </div>
+                <div class="flex-1 truncate text-slate-200">
+                  <span class="font-medium">{{ u.nom }}</span>
+                  <span class="text-slate-400 text-[11px] ml-1">({{ u.role || 'Membre' }})</span>
+                </div>
+              </label>
+              <div v-if="projectCollaborators.length === 0" class="text-xs text-slate-500 p-2 text-center">
+                Aucun collaborateur disponible
+              </div>
+            </div>
+          </div>
+
+          <!-- Tâches dépendantes (Prérequis avant de pouvoir commencer ou déplacer cette tâche) -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-medium text-slate-300">
+                Tâches dépendantes / Prérequis
+              </label>
+              <span class="text-[10px] text-slate-400">
+                {{ modals.task.form.dependances.length }} dépendance(s)
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-400 mb-2">
+              Cette tâche ne pourra pas être commencée ou déplacée tant que les tâches prérequises cochées ne sont pas à l'état "Terminé".
+            </p>
+            <div class="max-h-36 overflow-y-auto bg-slate-950 border border-slate-700 rounded-lg p-2 space-y-1">
+              <label v-for="t in availableDependentTasks" :key="t._id"
+                     class="flex items-center gap-2 p-1.5 rounded hover:bg-slate-800/60 cursor-pointer text-xs transition">
+                <input type="checkbox" :value="t._id" v-model="modals.task.form.dependances"
+                       class="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500 h-4 w-4">
+                <span class="flex-1 truncate text-slate-200">{{ t.titre }}</span>
+                <span :class="t.statut === 'done' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-400 border-slate-700'"
+                      class="px-1.5 py-0.5 rounded text-[10px] border">
+                  {{ t.statut === 'done' ? 'Terminé' : (t.statut === 'in_progress' ? 'En cours' : 'À faire') }}
+                </span>
+              </label>
+              <div v-if="availableDependentTasks.length === 0" class="text-xs text-slate-500 p-2 text-center">
+                Aucune autre tâche disponible dans ce projet
+              </div>
             </div>
           </div>
 
@@ -1048,6 +1188,86 @@
       </div>
     </div>
 
+    <!-- 5. MODALE HISTORIQUE DES LOGS (AVANT / APRÈS) -->
+    <div v-if="modals.logs.show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
+              <i class="fa-solid fa-clock-rotate-left text-sm"></i>
+            </div>
+            <div>
+              <h2 class="text-base font-bold text-white">Historique & Logs des modifications</h2>
+              <p class="text-xs text-slate-400 font-medium">Tâche : <span class="text-slate-200">{{ modals.logs.task?.titre }}</span></p>
+            </div>
+          </div>
+          <button @click="modals.logs.show = false" class="text-slate-400 hover:text-white transition p-1">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto my-4 pr-1 space-y-3">
+          <div v-if="modals.logs.loading" class="py-12 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+            <i class="fa-solid fa-circle-notch fa-spin"></i> Chargement de l'historique...
+          </div>
+          
+          <div v-else-if="modals.logs.items.length === 0" class="py-12 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+            Aucun historique enregistré pour le moment.
+          </div>
+
+          <div v-for="log in modals.logs.items" :key="log._id" 
+               class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 space-y-2 text-xs">
+            <div class="flex items-center justify-between gap-2 border-b border-slate-800/60 pb-2">
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-indigo-700 text-[10px] font-bold text-white flex items-center justify-center">
+                  {{ getInitials(log.auteur?.nom) }}
+                </div>
+                <span class="font-semibold text-slate-200">{{ log.auteur?.nom || 'Utilisateur système' }}</span>
+                <span class="text-[11px] text-slate-400">({{ log.auteur?.role || 'Collaborateur' }})</span>
+              </div>
+              <span class="text-[11px] text-slate-500">{{ formatDate(log.dateAction) }}</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider"
+                    :class="getLogBadgeClass(log.action)">
+                {{ formatLogAction(log.action) }}
+              </span>
+              <span class="text-slate-300 font-medium">{{ log.message }}</span>
+            </div>
+
+            <!-- COMPARAISON AVANT / APRÈS -->
+            <div v-if="log.valeurAvant !== null || log.valeurApres !== null" class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-800/50">
+              <div class="bg-rose-950/20 border border-rose-900/30 rounded-lg p-2.5">
+                <span class="block text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-1 flex items-center gap-1">
+                  <i class="fa-solid fa-arrow-left"></i> Avant
+                </span>
+                <div class="text-slate-300 break-words whitespace-pre-wrap font-mono text-[11px]">
+                  {{ formatLogValue(log.champModifie, log.valeurAvant) }}
+                </div>
+              </div>
+
+              <div class="bg-emerald-950/20 border border-emerald-900/30 rounded-lg p-2.5">
+                <span class="block text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1 flex items-center gap-1">
+                  <i class="fa-solid fa-arrow-right"></i> Après
+                </span>
+                <div class="text-slate-300 break-words whitespace-pre-wrap font-mono text-[11px]">
+                  {{ formatLogValue(log.champModifie, log.valeurApres) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end">
+          <button @click="modals.logs.show = false"
+                  class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- SCRIPT LOGIQUE VUE.JS 3 AVEC AUTHENTIFICATION -->
@@ -1091,7 +1311,13 @@
 
         // Modales
         const modals = ref({
-          task: { show: false, isEdit: false, id: null, form: { titre: '', description: '', projetId: '', statut: 'todo', priorite: 'medium', assigneA: null } },
+          task: { 
+            show: false, 
+            isEdit: false, 
+            id: null, 
+            form: { titre: '', description: '', projetId: '', statut: 'todo', priorite: 'medium', assigneA: [], dependances: [], dateEcheance: '' } 
+          },
+          logs: { show: false, loading: false, task: null, items: [] },
           project: { show: false, isEdit: false, id: null, form: { nom: '', description: '', membres: [] } },
           user: { show: false, isEdit: false, id: null, form: { nom: '', email: '', role: '' } },
           entreprise: { show: false, isEdit: false, id: null, form: { nom: '', secteur: '', description: '' } }
@@ -1100,6 +1326,32 @@
         // Dérivées
         const selectedProjet = computed(() => {
           return projets.value.find(p => p._id === selectedProjetId.value) || null;
+        });
+
+        // Collaborateurs du projet sélectionné dans la modale tâche (ou tous les collaborateurs de l'entreprise si non filtré)
+        const projectCollaborators = computed(() => {
+          const formProjId = modals.value.task.form.projetId;
+          if (!formProjId) return utilisateurs.value;
+          const proj = projets.value.find(p => p._id === formProjId);
+          if (proj && proj.membres && proj.membres.length > 0) {
+            const memberIds = proj.membres.map(m => (m._id || m).toString());
+            return utilisateurs.value.filter(u => memberIds.includes(u._id.toString()));
+          }
+          return utilisateurs.value;
+        });
+
+        // Tâches pouvant servir de dépendances (exclut la tâche courante)
+        const availableDependentTasks = computed(() => {
+          const formProjId = modals.value.task.form.projetId;
+          const currentTaskId = modals.value.task.id;
+          return taches.value.filter(t => {
+            if (currentTaskId && t._id === currentTaskId) return false;
+            if (formProjId) {
+              const tProjId = t.projetId?._id || t.projetId;
+              return tProjId === formProjId;
+            }
+            return true;
+          });
         });
 
         const tasksByStatus = computed(() => {
@@ -1241,11 +1493,46 @@
           loadTasks();
         };
 
+        // Helper fonctions pour assignés et dépendances
+        const getTaskAssignees = (task) => {
+          if (!task.assigneA) return [];
+          if (Array.isArray(task.assigneA)) return task.assigneA.filter(Boolean);
+          return [task.assigneA];
+        };
+
+        const getTaskAssigneesNames = (task) => {
+          const assignees = getTaskAssignees(task);
+          if (assignees.length === 0) return 'Non assigné';
+          return assignees.map(a => a.nom || 'Membre').join(', ');
+        };
+
+        const getUnfinishedDeps = (task) => {
+          if (!task.dependances || task.dependances.length === 0) return [];
+          return task.dependances.filter(d => {
+            if (!d) return false;
+            // On vérifie dans la liste actuelle des tâches pour avoir le statut le plus récent
+            const found = taches.value.find(t => t._id === (d._id || d));
+            return (found ? found.statut : d.statut) !== 'done';
+          });
+        };
+
+        const isTaskBlocked = (task) => {
+          return getUnfinishedDeps(task).length > 0;
+        };
+
+        const getBlockedReason = (task) => {
+          const unfinished = getUnfinishedDeps(task);
+          if (unfinished.length === 0) return '';
+          return unfinished.map(d => d.titre || 'Tâche préalable').join(', ');
+        };
+
         // ==========================================
-        // GESTION TÂCHES
+        // GESTION TÂCHES & HISTORIQUE
         // ==========================================
         const openTaskModal = (task = null) => {
           if (task && task._id) {
+            const assignees = getTaskAssignees(task);
+            const deps = (task.dependances || []).map(d => d._id || d);
             modals.value.task = {
               show: true,
               isEdit: true,
@@ -1256,7 +1543,9 @@
                 projetId: task.projetId?._id || task.projetId || '',
                 statut: task.statut || 'todo',
                 priorite: task.priorite || 'medium',
-                assigneA: task.assigneA?._id || task.assigneA || null
+                assigneA: assignees.map(a => a._id || a),
+                dependances: deps,
+                dateEcheance: task.dateEcheance ? task.dateEcheance.substring(0, 10) : ''
               }
             };
           } else {
@@ -1270,9 +1559,29 @@
                 projetId: selectedProjetId.value || (projets.value[0]?._id || ''),
                 statut: task?.statut || 'todo',
                 priorite: 'medium',
-                assigneA: currentUser.value?._id || null
+                assigneA: currentUser.value ? [currentUser.value._id] : [],
+                dependances: [],
+                dateEcheance: ''
               }
             };
+          }
+        };
+
+        const openTaskLogsModal = async (task) => {
+          modals.value.logs = {
+            show: true,
+            loading: true,
+            task: task,
+            items: []
+          };
+          try {
+            const res = await fetch(`/api/taches/${task._id}/logs`);
+            if (!res.ok) throw new Error();
+            modals.value.logs.items = await res.json();
+          } catch (err) {
+            showToast('Erreur chargement des logs', 'error');
+          } finally {
+            modals.value.logs.loading = false;
           }
         };
 
@@ -1285,7 +1594,10 @@
             description: form.description,
             statut: form.statut,
             priorite: form.priorite,
-            assigneA: form.assigneA || null
+            assigneA: form.assigneA,
+            dependances: form.dependances,
+            dateEcheance: form.dateEcheance || null,
+            userId: currentUser.value?._id
           };
 
           try {
@@ -1304,7 +1616,8 @@
               });
             }
 
-            if (!res.ok) throw new Error((await res.json()).error);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
             showToast(modals.value.task.isEdit ? 'Tâche mise à jour' : 'Tâche créée');
             modals.value.task.show = false;
             await loadTasks();
@@ -1314,19 +1627,28 @@
         };
 
         const updateTaskStatus = async (taskId, newStatus) => {
+          const task = taches.value.find(t => t._id === taskId);
+          if (task && newStatus !== 'todo' && isTaskBlocked(task)) {
+            showToast(`Impossible de déplacer la tâche : elle dépend de [${getBlockedReason(task)}] qui doit être terminée.`, 'error');
+            return;
+          }
+
           try {
             const res = await fetch(`/api/taches/${taskId}/statut`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ statut: newStatus })
+              body: JSON.stringify({ statut: newStatus, userId: currentUser.value?._id })
             });
-            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Erreur mise à jour statut');
+            
             const index = taches.value.findIndex(t => t._id === taskId);
             if (index !== -1) {
-              taches.value[index].statut = newStatus;
+              taches.value[index] = data;
             }
+            showToast(`Statut mis à jour : ${formatStatusName(newStatus)}`);
           } catch (err) {
-            showToast('Erreur mise à jour statut', 'error');
+            showToast(err.message, 'error');
           }
         };
 
@@ -1344,6 +1666,11 @@
 
         // DRAG & DROP HTML5
         const onDragStart = (event, task) => {
+          if (isTaskBlocked(task)) {
+            event.preventDefault();
+            showToast(`Déplacement bloqué : la tâche dépend de [${getBlockedReason(task)}]`, 'error');
+            return;
+          }
           event.dataTransfer.setData('text/plain', task._id);
           event.dataTransfer.effectAllowed = 'move';
         };
@@ -1572,6 +1899,15 @@
           }
         };
 
+        const formatStatusName = (statut) => {
+          switch (statut) {
+            case 'todo': return 'À faire';
+            case 'in_progress': return 'En cours';
+            case 'done': return 'Terminé';
+            default: return statut;
+          }
+        };
+
         const getPriorityBadgeClass = (priority) => {
           switch (priority) {
             case 'high': return 'bg-rose-950/80 text-rose-400 border border-rose-800/50';
@@ -1583,7 +1919,86 @@
 
         const formatDate = (dateStr) => {
           if (!dateStr) return '';
-          return new Date(dateStr).toLocaleDateString('fr-FR');
+          return new Date(dateStr).toLocaleString('fr-FR', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+          });
+        };
+
+        const formatLogAction = (action) => {
+          switch (action) {
+            case 'creation': return 'Création';
+            case 'deplacement_statut': return 'Déplacement';
+            case 'modification_description': return 'Description';
+            case 'modification_titre': return 'Titre';
+            case 'modification_priorite': return 'Priorité';
+            case 'modification_assignation': return 'Assignation';
+            case 'modification_dependances': return 'Dépendances';
+            default: return action;
+          }
+        };
+
+        const getLogBadgeClass = (action) => {
+          switch (action) {
+            case 'creation': return 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/50';
+            case 'deplacement_statut': return 'bg-indigo-950/80 text-indigo-400 border border-indigo-800/50';
+            case 'modification_description': return 'bg-amber-950/80 text-amber-400 border border-amber-800/50';
+            case 'modification_priorite': return 'bg-rose-950/80 text-rose-400 border border-rose-800/50';
+            default: return 'bg-slate-900 text-slate-400 border border-slate-800';
+          }
+        };
+
+        const formatLogValue = (champ, val) => {
+          if (val === null || val === undefined || val === '') return '(Vide / Aucun)';
+          if (champ === 'statut') return formatStatusName(val);
+          if (champ === 'priorite') return formatPriority(val);
+
+          // Si c'est le champ des membres assignés
+          if (champ === 'assigneA') {
+            const list = Array.isArray(val) ? val : [val];
+            if (list.length === 0) return 'Aucun membre';
+            return list.map(item => {
+              if (!item) return '';
+              if (typeof item === 'object' && item.nom) return item.nom;
+              // Si c'est un ID ObjectId
+              const found = utilisateurs.value.find(u => u._id === item);
+              return found ? found.nom : item;
+            }).filter(Boolean).join('\n• ');
+          }
+
+          // Si c'est le champ des dépendances
+          if (champ === 'dependances') {
+            const list = Array.isArray(val) ? val : [val];
+            if (list.length === 0) return 'Aucune dépendance';
+            return list.map(item => {
+              if (!item) return '';
+              if (typeof item === 'object' && item.titre) return item.titre;
+              const found = taches.value.find(t => t._id === item);
+              return found ? found.titre : item;
+            }).filter(Boolean).join('\n• ');
+          }
+
+          if (Array.isArray(val)) {
+            if (val.length === 0) return '(Vide)';
+            return val.map(item => {
+              if (typeof item === 'string' && /^[0-9a-fA-F]{24}$/.test(item)) {
+                const foundUser = utilisateurs.value.find(u => u._id === item);
+                if (foundUser) return foundUser.nom;
+                const foundTask = taches.value.find(t => t._id === item);
+                if (foundTask) return foundTask.titre;
+              }
+              return typeof item === 'object' ? JSON.stringify(item) : String(item);
+            }).join('\n• ');
+          }
+
+          if (typeof val === 'object') {
+            try {
+              return JSON.stringify(val, null, 2);
+            } catch (e) {
+              return String(val);
+            }
+          }
+          return String(val);
         };
 
         // Initialisation & Restauration de session
@@ -1650,6 +2065,18 @@
           saveEntreprise,
           deleteEntreprise,
           resetDemoData,
+          projectCollaborators,
+          availableDependentTasks,
+          getTaskAssignees,
+          getTaskAssigneesNames,
+          isTaskBlocked,
+          getBlockedReason,
+          getUnfinishedDeps,
+          openTaskLogsModal,
+          formatStatusName,
+          formatLogAction,
+          getLogBadgeClass,
+          formatLogValue,
           getInitials,
           formatPriority,
           getPriorityBadgeClass,

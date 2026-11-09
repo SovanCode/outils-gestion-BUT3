@@ -81,9 +81,37 @@ const tacheSchema = new mongoose.Schema({
     enum: ['low', 'medium', 'high'], 
     default: 'medium' 
   },
-  assigneA: { type: mongoose.Schema.Types.ObjectId, ref: 'Utilisateur', default: null },
+  assigneA: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Utilisateur' }],
+  dependances: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Tache' }],
   dateEcheance: { type: Date },
   dateCreation: { type: Date, default: Date.now }
+});
+
+// Schéma Historique / Logs des modifications de tâches
+const tacheLogSchema = new mongoose.Schema({
+  entrepriseId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Entreprise', 
+    required: true,
+    index: true
+  },
+  tacheId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Tache', 
+    required: true,
+    index: true 
+  },
+  auteur: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Utilisateur',
+    default: null
+  },
+  action: { type: String, required: true },
+  champModifie: { type: String },
+  valeurAvant: { type: mongoose.Schema.Types.Mixed, default: null },
+  valeurApres: { type: mongoose.Schema.Types.Mixed, default: null },
+  message: { type: String },
+  dateAction: { type: Date, default: Date.now }
 });
 
 // ==========================================
@@ -102,6 +130,7 @@ const Entreprise = mongoose.model('Entreprise', entrepriseSchema);
 const Utilisateur = mongoose.model('Utilisateur', utilisateurSchema);
 const Projet = mongoose.model('Projet', projetSchema);
 const Tache = mongoose.model('Tache', tacheSchema);
+const TacheLog = mongoose.model('TacheLog', tacheLogSchema);
 
 // ==========================================
 // 2. DONNÉES INITIALES (DEMO / SEED)
@@ -162,6 +191,34 @@ async function seedDatabase() {
   await Utilisateur.findByIdAndUpdate(clara._id, { $addToSet: { projetsAssignes: proj2._id } });
 
   // Tâches Proj 1 (Refonte)
+  const [tacheDocker] = await Tache.create([
+    {
+      entrepriseId: ent1._id,
+      projetId: proj1._id,
+      titre: 'Conteneurisation Docker & Compose multi-services',
+      description: 'Orchestrer l application Express et MongoDB 7 via docker compose.',
+      statut: 'done',
+      priorite: 'medium',
+      assigneA: [bob._id],
+      dependances: [],
+      dateEcheance: new Date(Date.now() - 1 * 24 * 3600 * 1000)
+    }
+  ]);
+
+  const [tacheReplica] = await Tache.create([
+    {
+      entrepriseId: ent1._id,
+      projetId: proj1._id,
+      titre: 'Mettre en place la réplication Replica Set',
+      description: 'Configurer 1 primaire, 2 secondaires et arbitre pour tolérance aux pannes.',
+      statut: 'in_progress',
+      priorite: 'high',
+      assigneA: [alice._id, bob._id],
+      dependances: [tacheDocker._id],
+      dateEcheance: new Date(Date.now() + 3 * 24 * 3600 * 1000)
+    }
+  ]);
+
   await Tache.create([
     {
       entrepriseId: ent1._id,
@@ -170,33 +227,37 @@ async function seedDatabase() {
       description: 'Choisir la clé de hachage optimale pour distribuer les collections multi-tenant.',
       statut: 'todo',
       priorite: 'high',
-      assigneA: alice._id,
+      assigneA: [alice._id],
+      dependances: [tacheReplica._id],
       dateEcheance: new Date(Date.now() + 7 * 24 * 3600 * 1000)
+    }
+  ]);
+
+  // Logs initiaux de démonstration
+  await TacheLog.create([
+    {
+      entrepriseId: ent1._id,
+      tacheId: tacheDocker._id,
+      auteur: bob._id,
+      action: 'creation',
+      message: 'Création initiale de la tâche',
+      valeurAvant: null,
+      valeurApres: { titre: tacheDocker.titre, statut: 'todo' }
     },
     {
       entrepriseId: ent1._id,
-      projetId: proj1._id,
-      titre: 'Mettre en place la réplication Replica Set',
-      description: 'Configurer 1 primaire, 2 secondaires et arbitre pour tolérance aux pannes.',
-      statut: 'in_progress',
-      priorite: 'high',
-      assigneA: alice._id,
-      dateEcheance: new Date(Date.now() + 3 * 24 * 3600 * 1000)
-    },
-    {
-      entrepriseId: ent1._id,
-      projetId: proj1._id,
-      titre: 'Conteneurisation Docker & Compose multi-services',
-      description: 'Orchestrer l application Express et MongoDB 7 via docker compose.',
-      statut: 'done',
-      priorite: 'medium',
-      assigneA: bob._id,
-      dateEcheance: new Date(Date.now() - 1 * 24 * 3600 * 1000)
+      tacheId: tacheDocker._id,
+      auteur: bob._id,
+      action: 'deplacement_statut',
+      champModifie: 'statut',
+      valeurAvant: 'in_progress',
+      valeurApres: 'done',
+      message: 'Statut passé de "in_progress" à "done"'
     }
   ]);
 
   // Tâches Proj 2 (Mobile)
-  await Tache.create([
+  const [tacheTactile] = await Tache.create([
     {
       entrepriseId: ent1._id,
       projetId: proj2._id,
@@ -204,8 +265,12 @@ async function seedDatabase() {
       description: 'Support fluide du drag and drop sur smartphone et tablette.',
       statut: 'in_progress',
       priorite: 'medium',
-      assigneA: bob._id
-    },
+      assigneA: [bob._id, clara._id],
+      dependances: []
+    }
+  ]);
+
+  await Tache.create([
     {
       entrepriseId: ent1._id,
       projetId: proj2._id,
@@ -213,7 +278,8 @@ async function seedDatabase() {
       description: 'Recueillir les retours ergonomiques sur les transitions de statut.',
       statut: 'done',
       priorite: 'low',
-      assigneA: clara._id
+      assigneA: [clara._id],
+      dependances: []
     }
   ]);
 
@@ -253,7 +319,8 @@ async function seedDatabase() {
       description: 'Variantes Dark et Light mode avec contrastes WCAG AAA.',
       statut: 'todo',
       priorite: 'medium',
-      assigneA: emma._id
+      assigneA: [emma._id],
+      dependances: []
     },
     {
       entrepriseId: ent2._id,
@@ -262,7 +329,8 @@ async function seedDatabase() {
       description: 'Validation de la typographie Inter et de la palette Tailwind.',
       statut: 'done',
       priorite: 'high',
-      assigneA: david._id
+      assigneA: [david._id],
+      dependances: []
     }
   ]);
 
@@ -395,6 +463,7 @@ app.get('/api/auth/me', async (req, res) => {
 // Réinitialisation des données de démo
 app.post('/api/seed', async (req, res) => {
   try {
+    await TacheLog.deleteMany({});
     await Tache.deleteMany({});
     await Projet.deleteMany({});
     await Utilisateur.deleteMany({});
@@ -520,7 +589,7 @@ app.delete('/api/utilisateurs/:id', async (req, res) => {
   try {
     const userId = req.params.id;
     // Désassigner des tâches
-    await Tache.updateMany({ assigneA: userId }, { $set: { assigneA: null } });
+    await Tache.updateMany({ assigneA: userId }, { $pull: { assigneA: userId } });
     // Retirer des projets
     await Projet.updateMany({ membres: userId }, { $pull: { membres: userId } });
     const deleted = await Utilisateur.findByIdAndDelete(userId);
@@ -623,6 +692,7 @@ app.get('/api/taches', async (req, res) => {
 
     const list = await Tache.find(filter)
       .populate('assigneA', 'nom email role')
+      .populate('dependances', 'titre statut priorite')
       .populate('projetId', 'nom')
       .sort({ dateCreation: -1 });
 
@@ -634,7 +704,7 @@ app.get('/api/taches', async (req, res) => {
 
 app.post('/api/taches', async (req, res) => {
   try {
-    const { entrepriseId, projetId, titre, description, statut, priorite, assigneA, dateEcheance } = req.body;
+    const { entrepriseId, projetId, titre, description, statut, priorite, assigneA, dependances, dateEcheance, userId } = req.body;
     if (!entrepriseId || !projetId || !titre) {
       return res.status(400).json({ error: 'entrepriseId, projetId et titre sont requis' });
     }
@@ -645,11 +715,42 @@ app.post('/api/taches', async (req, res) => {
       return res.status(403).json({ error: 'Ce projet n appartient pas à l entreprise active' });
     }
 
-    // Vérifier que l'utilisateur assigné appartient à l'entreprise
-    if (assigneA) {
-      const user = await Utilisateur.findOne({ _id: assigneA, entrepriseId });
-      if (!user) {
-        return res.status(403).json({ error: 'L utilisateur assigné n appartient pas à cette entreprise' });
+    // Normaliser les assignés en tableau
+    let assignesArray = [];
+    if (Array.isArray(assigneA)) {
+      assignesArray = assigneA.filter(Boolean);
+    } else if (assigneA) {
+      assignesArray = [assigneA];
+    }
+
+    // Vérifier que les utilisateurs assignés appartiennent à l'entreprise
+    if (assignesArray.length > 0) {
+      const count = await Utilisateur.countDocuments({ _id: { $in: assignesArray }, entrepriseId });
+      if (count !== assignesArray.length) {
+        return res.status(403).json({ error: 'Un ou plusieurs utilisateurs assignés n appartiennent pas à cette entreprise' });
+      }
+    }
+
+    // Normaliser les dépendances
+    let dependancesArray = [];
+    if (Array.isArray(dependances)) {
+      dependancesArray = dependances.filter(Boolean);
+    } else if (dependances) {
+      dependancesArray = [dependances];
+    }
+
+    // Vérification de blocage par les dépendances si on tente de créer directement en 'in_progress' ou 'done'
+    const targetStatus = statut || 'todo';
+    if (targetStatus !== 'todo' && dependancesArray.length > 0) {
+      const nonTerminees = await Tache.find({
+        _id: { $in: dependancesArray },
+        statut: { $ne: 'done' }
+      });
+      if (nonTerminees.length > 0) {
+        const titres = nonTerminees.map(t => `"${t.titre}"`).join(', ');
+        return res.status(400).json({
+          error: `Impossible de démarrer la tâche : les tâches préalables suivantes doivent être terminées : ${titres}`
+        });
       }
     }
 
@@ -658,15 +759,37 @@ app.post('/api/taches', async (req, res) => {
       projetId,
       titre,
       description,
-      statut: statut || 'todo',
+      statut: targetStatus,
       priorite: priorite || 'medium',
-      assigneA: assigneA || null,
+      assigneA: assignesArray,
+      dependances: dependancesArray,
       dateEcheance: dateEcheance || null
     });
 
     await tache.save();
+
+    // Log de création
+    const usersAssignes = await Utilisateur.find({ _id: { $in: assignesArray } }, 'nom');
+    const nomsAssignes = usersAssignes.map(u => u.nom);
+    await TacheLog.create({
+      entrepriseId,
+      tacheId: tache._id,
+      auteur: userId || null,
+      action: 'creation',
+      champModifie: 'tache',
+      valeurAvant: null,
+      valeurApres: { 
+        titre: tache.titre, 
+        statut: tache.statut, 
+        description: tache.description,
+        assigneA: nomsAssignes 
+      },
+      message: `Tâche "${tache.titre}" créée`
+    });
+
     const populated = await Tache.findById(tache._id)
       .populate('assigneA', 'nom email role')
+      .populate('dependances', 'titre statut priorite')
       .populate('projetId', 'nom');
 
     res.status(201).json(populated);
@@ -677,21 +800,147 @@ app.post('/api/taches', async (req, res) => {
 
 app.put('/api/taches/:id', async (req, res) => {
   try {
-    const { titre, description, statut, priorite, assigneA, dateEcheance, projetId } = req.body;
+    const { titre, description, statut, priorite, assigneA, dependances, dateEcheance, projetId, userId } = req.body;
     const tache = await Tache.findById(req.params.id);
     if (!tache) return res.status(404).json({ error: 'Tâche introuvable' });
 
-    if (titre !== undefined) tache.titre = titre;
-    if (description !== undefined) tache.description = description;
-    if (statut !== undefined) tache.statut = statut;
-    if (priorite !== undefined) tache.priorite = priorite;
-    if (assigneA !== undefined) tache.assigneA = assigneA || null;
+    const changements = [];
+
+    // Normalisation dépendances
+    let dependancesArray = tache.dependances;
+    if (dependances !== undefined) {
+      dependancesArray = Array.isArray(dependances) ? dependances.filter(d => Boolean(d) && d.toString() !== tache._id.toString()) : (dependances ? [dependances] : []);
+    }
+
+    // Si changement de statut vers in_progress ou done, vérifier les dépendances
+    if (statut !== undefined && statut !== tache.statut && statut !== 'todo') {
+      const depsToCheck = dependancesArray;
+      if (depsToCheck && depsToCheck.length > 0) {
+        const nonTerminees = await Tache.find({
+          _id: { $in: depsToCheck },
+          statut: { $ne: 'done' }
+        });
+        if (nonTerminees.length > 0) {
+          const titres = nonTerminees.map(t => `"${t.titre}"`).join(', ');
+          return res.status(400).json({
+            error: `Action bloquée : la tâche dépend de [${titres}] qui n'est/ne sont pas encore terminée(s)`
+          });
+        }
+      }
+    }
+
+    // Détection des changements pour l'historique
+    if (statut !== undefined && statut !== tache.statut) {
+      changements.push({
+        action: 'deplacement_statut',
+        champModifie: 'statut',
+        valeurAvant: tache.statut,
+        valeurApres: statut,
+        message: `Statut déplacé de "${tache.statut}" à "${statut}"`
+      });
+      tache.statut = statut;
+    }
+
+    if (description !== undefined && description !== (tache.description || '')) {
+      changements.push({
+        action: 'modification_description',
+        champModifie: 'description',
+        valeurAvant: tache.description || '',
+        valeurApres: description,
+        message: 'Description mise à jour'
+      });
+      tache.description = description;
+    }
+
+    if (titre !== undefined && titre !== tache.titre) {
+      changements.push({
+        action: 'modification_titre',
+        champModifie: 'titre',
+        valeurAvant: tache.titre,
+        valeurApres: titre,
+        message: `Titre modifié de "${tache.titre}" à "${titre}"`
+      });
+      tache.titre = titre;
+    }
+
+    if (priorite !== undefined && priorite !== tache.priorite) {
+      changements.push({
+        action: 'modification_priorite',
+        champModifie: 'priorite',
+        valeurAvant: tache.priorite,
+        valeurApres: priorite,
+        message: `Priorité modifiée de "${tache.priorite}" à "${priorite}"`
+      });
+      tache.priorite = priorite;
+    }
+
+    if (assigneA !== undefined) {
+      const newAssignes = Array.isArray(assigneA) ? assigneA.filter(Boolean) : (assigneA ? [assigneA] : []);
+      const oldAssignesStr = tache.assigneA.map(a => a.toString()).sort().join(',');
+      const newAssignesStr = newAssignes.map(a => a.toString()).sort().join(',');
+      if (oldAssignesStr !== newAssignesStr) {
+        // Résolution des noms et prénoms pour l'historique
+        const usersAvant = await Utilisateur.find({ _id: { $in: tache.assigneA } }, 'nom');
+        const usersApres = await Utilisateur.find({ _id: { $in: newAssignes } }, 'nom');
+        const nomsAvant = usersAvant.map(u => u.nom);
+        const nomsApres = usersApres.map(u => u.nom);
+
+        changements.push({
+          action: 'modification_assignation',
+          champModifie: 'assigneA',
+          valeurAvant: nomsAvant,
+          valeurApres: nomsApres,
+          message: 'Membres assignés modifiés'
+        });
+        tache.assigneA = newAssignes;
+      }
+    }
+
+    if (dependances !== undefined) {
+      const oldDepsStr = tache.dependances.map(d => d.toString()).sort().join(',');
+      const newDepsStr = dependancesArray.map(d => d.toString()).sort().join(',');
+      if (oldDepsStr !== newDepsStr) {
+        // Résolution des titres de tâches pour l'historique
+        const tachesAvant = await Tache.find({ _id: { $in: tache.dependances } }, 'titre');
+        const tachesApres = await Tache.find({ _id: { $in: dependancesArray } }, 'titre');
+        const titresAvant = tachesAvant.map(t => t.titre);
+        const titresApres = tachesApres.map(t => t.titre);
+
+        changements.push({
+          action: 'modification_dependances',
+          champModifie: 'dependances',
+          valeurAvant: titresAvant,
+          valeurApres: titresApres,
+          message: 'Tâches dépendantes modifiées'
+        });
+        tache.dependances = dependancesArray;
+      }
+    }
+
     if (dateEcheance !== undefined) tache.dateEcheance = dateEcheance || null;
     if (projetId !== undefined) tache.projetId = projetId;
 
     await tache.save();
+
+    // Enregistrer les logs
+    if (changements.length > 0) {
+      for (const ch of changements) {
+        await TacheLog.create({
+          entrepriseId: tache.entrepriseId,
+          tacheId: tache._id,
+          auteur: userId || null,
+          action: ch.action,
+          champModifie: ch.champModifie,
+          valeurAvant: ch.valeurAvant,
+          valeurApres: ch.valeurApres,
+          message: ch.message
+        });
+      }
+    }
+
     const updated = await Tache.findById(tache._id)
       .populate('assigneA', 'nom email role')
+      .populate('dependances', 'titre statut priorite')
       .populate('projetId', 'nom');
 
     res.json(updated);
@@ -703,27 +952,74 @@ app.put('/api/taches/:id', async (req, res) => {
 // Mise à jour rapide du statut (Kanban drag-and-drop / click)
 app.patch('/api/taches/:id/statut', async (req, res) => {
   try {
-    const { statut } = req.body;
+    const { statut, userId } = req.body;
     if (!['todo', 'in_progress', 'done'].includes(statut)) {
       return res.status(400).json({ error: 'Statut invalide (todo, in_progress, done acceptés)' });
     }
 
-    const tache = await Tache.findByIdAndUpdate(
-      req.params.id, 
-      { statut }, 
-      { new: true }
-    ).populate('assigneA', 'nom email role').populate('projetId', 'nom');
-
+    const tache = await Tache.findById(req.params.id).populate('dependances', 'titre statut');
     if (!tache) return res.status(404).json({ error: 'Tâche introuvable' });
-    res.json(tache);
+
+    // Si on tente de déplacer la tâche hors de "todo" (vers in_progress ou done), vérifier ses dépendances
+    if (statut !== 'todo' && tache.dependances && tache.dependances.length > 0) {
+      const nonTerminees = tache.dependances.filter(d => d && d.statut !== 'done');
+      if (nonTerminees.length > 0) {
+        const titres = nonTerminees.map(d => `"${d.titre}"`).join(', ');
+        return res.status(400).json({
+          error: `Impossible de déplacer cette tâche : elle dépend de [${titres}] qui doit/doivent d'abord être terminée(s).`
+        });
+      }
+    }
+
+    const ancienStatut = tache.statut;
+    tache.statut = statut;
+    await tache.save();
+
+    // Enregistrer le log du déplacement
+    if (ancienStatut !== statut) {
+      await TacheLog.create({
+        entrepriseId: tache.entrepriseId,
+        tacheId: tache._id,
+        auteur: userId || null,
+        action: 'deplacement_statut',
+        champModifie: 'statut',
+        valeurAvant: ancienStatut,
+        valeurApres: statut,
+        message: `Statut déplacé de "${ancienStatut}" à "${statut}"`
+      });
+    }
+
+    const result = await Tache.findById(tache._id)
+      .populate('assigneA', 'nom email role')
+      .populate('dependances', 'titre statut priorite')
+      .populate('projetId', 'nom');
+
+    res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
+// Récupérer l'historique complet d'une tâche
+app.get('/api/taches/:id/logs', async (req, res) => {
+  try {
+    const logs = await TacheLog.find({ tacheId: req.params.id })
+      .populate('auteur', 'nom email role')
+      .sort({ dateAction: -1 });
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Supprimer une tâche et nettoyer les dépendances et logs associés
 app.delete('/api/taches/:id', async (req, res) => {
   try {
-    const deleted = await Tache.findByIdAndDelete(req.params.id);
+    const taskId = req.params.id;
+    // Retirer cette tâche des dépendances d'autres tâches
+    await Tache.updateMany({ dependances: taskId }, { $pull: { dependances: taskId } });
+    await TacheLog.deleteMany({ tacheId: taskId });
+    const deleted = await Tache.findByIdAndDelete(taskId);
     if (!deleted) return res.status(404).json({ error: 'Tâche introuvable' });
     res.json({ message: 'Tâche supprimée' });
   } catch (err) {
