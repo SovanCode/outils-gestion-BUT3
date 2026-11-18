@@ -153,21 +153,21 @@ async function seedDatabase() {
     entrepriseId: ent1._id,
     nom: 'Alice Martin',
     email: 'alice.martin@techcorp.fr',
-    role: 'Lead Développeuse Backend'
+    role: 'Admin'
   });
 
   const bob = await Utilisateur.create({
     entrepriseId: ent1._id,
     nom: 'Bob Dupont',
     email: 'bob.dupont@techcorp.fr',
-    role: 'Développeur Fullstack'
+    role: 'Collaborateur'
   });
 
   const clara = await Utilisateur.create({
     entrepriseId: ent1._id,
     nom: 'Clara Moreau',
     email: 'clara.moreau@techcorp.fr',
-    role: 'Product Owner'
+    role: 'Collaborateur'
   });
 
   // Projets TechCorp
@@ -294,14 +294,14 @@ async function seedDatabase() {
     entrepriseId: ent2._id,
     nom: 'David Leroy',
     email: 'david.leroy@innodesign.io',
-    role: 'Directeur Artistique'
+    role: 'Admin'
   });
 
   const emma = await Utilisateur.create({
     entrepriseId: ent2._id,
     nom: 'Emma Petit',
     email: 'emma.petit@innodesign.io',
-    role: 'UI Designer'
+    role: 'Collaborateur'
   });
 
   const proj3 = await Projet.create({
@@ -520,7 +520,112 @@ app.delete('/api/entreprises/:id', async (req, res) => {
   }
 });
 
-// --- UTILISATEURS (CRUD AVEC ISOLATION STRICTE) ---
+// ==========================================
+// MIDDLEWARE RBAC : CONTRÔLE D'ACCÈS BASÉ SUR LES RÔLES
+// ==========================================
+// Seuls les utilisateurs avec le rôle 'Admin' peuvent effectuer des opérations sensibles (création/suppression de projets et de collaborateurs)
+const requireAdmin = async (req, res, next) => {
+  try {
+    const userId = req.headers['x-user-id'] || req.query.userId || req.body?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Accès refusé : identifiant utilisateur manquant (Header X-User-Id requis).' });
+    }
+    const user = await Utilisateur.findById(userId);
+    if (!user) {
+      return res.status(401).json({ error: 'Utilisateur introuvable.' });
+    }
+    if (user.role !== 'Admin') {
+      return res.status(403).json({ 
+        error: 'Privilèges insuffisants : seuls les utilisateurs avec le rôle Admin sont autorisés à effectuer cette opération.' 
+      });
+    }
+    req.currentUser = user;
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// --- TABLEAU DE BORD ANALYTIQUE & KPI (ISOLÉ PAR ENTREPRISE) ---
+app.get('/api/stats', async (req, res) => {
+  try {
+    const entrepriseId = req.headers['x-entreprise-id'] || req.headers['x-tenant-id'] || req.query.entrepriseId;
+    if (!entrepriseId) {
+      return res.status(400).json({ error: 'Le paramètre ou header entrepriseId (X-Entreprise-Id) est obligatoire pour le calcul des statistiques.' });
+    }
+
+    // 1. Nombre total de projets de l'entreprise
+    const projetsCount = await Projet.countDocuments({ entrepriseId });
+
+    // 2. Statistiques globales des tâches
+    const totalTaches = await Tache.countDocuments({ entrepriseId });
+    const tachesTodo = await Tache.countDocuments({ entrepriseId, statut: 'todo' });
+    const tachesInProgress = await Tache.countDocuments({ entrepriseId, statut: 'in_progress' });
+    const tachesDone = await Tache.countDocuments({ entrepriseId, statut: 'done' });
+
+    // Calcul du taux d'avancement global (%)
+    const tauxAvancementGlobal = totalTaches > 0 ? Math.round((tachesDone / totalTaches) * 100) : 0;
+
+    // Répartition par priorité
+    const prioriteHigh = await Tache.countDocuments({ entrepriseId, priorite: 'high' });
+    const prioriteMedium = await Tache.countDocuments({ entrepriseId, priorite: 'medium' });
+    const prioriteLow = await Tache.countDocuments({ entrepriseId, priorite: 'low' });
+
+    // 3. Charge de travail par membre de l'équipe
+    const utilisateurs = await Utilisateur.find({ entrepriseId }).select('nom email role').lean();
+    
+    const chargeMembres = await Promise.all(
+      utilisateurs.map(async (u) => {
+        const uTotal = await Tache.countDocuments({ entrepriseId, assigneA: u._id });
+        const uTodo = await Tache.countDocuments({ entrepriseId, assigneA: u._id, statut: 'todo' });
+        const uInProgress = await Tache.countDocuments({ entrepriseId, assigneA: u._id, statut: 'in_progress' });
+        const uDone = await Tache.countDocuments({ entrepriseId, assigneA: u._id, statut: 'done' });
+        const tauxCompletion = uTotal > 0 ? Math.round((uDone / uTotal) * 100) : 0;
+
+        return {
+          _id: u._id,
+          nom: u.nom,
+          email: u.email,
+          role: u.role || 'Collaborateur',
+          total: uTotal,
+          todo: uTodo,
+          in_progress: uInProgress,
+          done: uDone,
+          tauxCompletion
+        };
+      })
+    );
+
+    // Tâches non assignées
+    const tachesNonAssignees = await Tache.countDocuments({
+      entrepriseId,
+      $or: [{ assigneA: { $exists: false } }, { assigneA: { $size: 0 } }]
+    });
+
+    res.json({
+      projetsCount,
+      totalTaches,
+      tachesParStatut: {
+        todo: tachesTodo,
+        in_progress: tachesInProgress,
+        done: tachesDone
+      },
+      tauxAvancementGlobal,
+      tachesParPriorite: {
+        high: prioriteHigh,
+        medium: prioriteMedium,
+        low: prioriteLow
+      },
+      chargeMembres,
+      tachesNonAssignees,
+      membresCount: utilisateurs.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- UTILISATEURS (CRUD AVEC ISOLATION STRICTE ET RBAC) ---
 app.get('/api/utilisateurs', async (req, res) => {
   try {
     const { entrepriseId } = req.query;
@@ -534,7 +639,7 @@ app.get('/api/utilisateurs', async (req, res) => {
   }
 });
 
-app.post('/api/utilisateurs', async (req, res) => {
+app.post('/api/utilisateurs', requireAdmin, async (req, res) => {
   try {
     const { entrepriseId, nom, email, role, projetsAssignes } = req.body;
     if (!entrepriseId) return res.status(400).json({ error: 'entrepriseId requis' });
@@ -585,7 +690,7 @@ app.put('/api/utilisateurs/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/utilisateurs/:id', async (req, res) => {
+app.delete('/api/utilisateurs/:id', requireAdmin, async (req, res) => {
   try {
     const userId = req.params.id;
     // Désassigner des tâches
@@ -600,7 +705,7 @@ app.delete('/api/utilisateurs/:id', async (req, res) => {
   }
 });
 
-// --- PROJETS (CRUD AVEC ISOLATION STRICTE) ---
+// --- PROJETS (CRUD AVEC ISOLATION STRICTE ET RBAC) ---
 app.get('/api/projets', async (req, res) => {
   try {
     const { entrepriseId } = req.query;
@@ -614,7 +719,7 @@ app.get('/api/projets', async (req, res) => {
   }
 });
 
-app.post('/api/projets', async (req, res) => {
+app.post('/api/projets', requireAdmin, async (req, res) => {
   try {
     const { entrepriseId, nom, description, membres } = req.body;
     if (!entrepriseId) return res.status(400).json({ error: 'entrepriseId requis' });
@@ -665,8 +770,8 @@ app.put('/api/projets/:id', async (req, res) => {
   }
 });
 
-// Suppression de projet et purge en cascade de ses tâches
-app.delete('/api/projets/:id', async (req, res) => {
+// Suppression de projet et purge en cascade de ses tâches (Réservé Admin)
+app.delete('/api/projets/:id', requireAdmin, async (req, res) => {
   try {
     const projetId = req.params.id;
     await Tache.deleteMany({ projetId });

@@ -140,11 +140,24 @@ tacheSchema.index({ entrepriseId: 1, projetId: 1, statut: 1 });
 - `POST /api/auth/register` : Inscription d'un nouvel utilisateur et création optionnelle d'entreprise.
 - `GET /api/auth/me` : Récupération du profil et validation de session.
 
-### 4.2. CRUD Métier (Isolé par `entrepriseId`)
+### 4.2. CRUD Métier & Rôles RBAC (Isolé par `entrepriseId`)
 - `/api/entreprises` : GET, POST, PUT, DELETE (suppression en cascade).
-- `/api/projets` : GET (filtré par `entrepriseId`), POST, PUT, DELETE (purge des tâches).
-- `/api/utilisateurs` : GET (filtré par `entrepriseId`), POST, PUT, DELETE (désassignation propre).
+- `/api/projets` : 
+  - `GET` : Filtré strictement par `entrepriseId`.
+  - `POST`, `DELETE` : Protégés par le middleware `requireAdmin` (Header `X-User-Id` avec rôle `'Admin'`).
+  - `PUT` : Mise à jour des informations de projet.
+- `/api/utilisateurs` : 
+  - `GET` : Filtré strictement par `entrepriseId`.
+  - `POST`, `DELETE` : Protégés par le middleware `requireAdmin` (Header `X-User-Id` avec rôle `'Admin'`).
+  - `PUT` : Mise à jour du profil collaborateur.
 - `/api/taches` : GET (filtré par `entrepriseId` et `projetId`), POST, PUT, PATCH (`/api/taches/:id/statut` pour le Kanban), DELETE.
+
+### 4.3. Tableau de Bord Analytique & KPI
+- `GET /api/stats` : Calcul d'agrégation multi-tenant via Mongoose :
+  - Nombre total de projets actifs (`Projet.countDocuments`).
+  - Taux d'avancement global en pourcentage (`(tachesDone / totalTaches) * 100`).
+  - Répartition par statut (*todo*, *in_progress*, *done*) et par priorité (*high*, *medium*, *low*).
+  - Charge de travail nominative par collaborateur de l'équipe (tâches assignées, répartition des statuts, taux de complétion individuel).
 
 ---
 

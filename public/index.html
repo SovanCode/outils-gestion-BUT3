@@ -165,9 +165,12 @@
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Poste / Rôle</label>
-              <input v-model="registerForm.role" type="text" placeholder="Développeuse Fullstack, Chef de projet..."
-                     class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              <label class="block text-xs font-medium text-slate-300 mb-1">Rôle et Permissions *</label>
+              <select v-model="registerForm.role"
+                      class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <option value="Collaborateur">Collaborateur (Gestion des tâches, tableau Kanban)</option>
+                <option value="Admin">Admin (Tous les droits : création & suppression projets et membres)</option>
+              </select>
             </div>
 
             <!-- Choix Entreprise -->
@@ -263,13 +266,21 @@
 
             <!-- ACTIONS UTILISATEUR & DECONNEXION -->
             <div class="flex items-center gap-3">
-              <!-- Profil Utilisateur Connecté -->
+              <!-- Profil Utilisateur Connecté avec Badge RBAC -->
               <div class="hidden sm:flex items-center gap-2.5 pl-2">
                 <div class="w-8 h-8 rounded-full bg-indigo-600 text-xs font-bold text-white flex items-center justify-center shadow">
                   {{ getInitials(currentUser.nom) }}
                 </div>
                 <div class="text-left text-xs">
-                  <div class="font-semibold text-slate-200">{{ currentUser.nom }}</div>
+                  <div class="font-semibold text-slate-200 flex items-center gap-1.5">
+                    <span>{{ currentUser.nom }}</span>
+                    <span v-if="isAdmin" class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30" title="Privilèges Administrateur actifs">
+                      <i class="fa-solid fa-crown text-[8px]"></i> Admin
+                    </span>
+                    <span v-else class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700" title="Collaborateur standard">
+                      <i class="fa-solid fa-user text-[8px]"></i> Membre
+                    </span>
+                  </div>
                   <div class="text-[11px] text-slate-400">{{ currentUser.role || 'Collaborateur' }}</div>
                 </div>
               </div>
@@ -298,7 +309,8 @@
           <i class="fa-solid fa-shield-halved text-indigo-400"></i>
           <span>
             <strong>Espace sécurisé de {{ currentEntreprise ? currentEntreprise.nom : '...' }} :</strong> 
-            Connecté en tant que <span class="font-bold text-white">{{ currentUser.nom }}</span>. 
+            Connecté en tant que <span class="font-bold text-white">{{ currentUser.nom }}</span> 
+            ({{ currentUser.role || 'Collaborateur' }}). 
             Les données des autres organisations sont strictement inaccessibles.
           </span>
         </div>
@@ -308,31 +320,38 @@
           <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-3 py-2">
             
             <!-- Onglets -->
-            <nav class="flex space-x-1 sm:space-x-4">
+            <nav class="flex space-x-1 sm:space-x-3 overflow-x-auto">
               <button @click="activeTab = 'kanban'"
                       :class="activeTab === 'kanban' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2">
+                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2 whitespace-nowrap">
                 <i class="fa-solid fa-table-columns"></i>
                 <span>Tableau Kanban</span>
               </button>
 
+              <button @click="activeTab = 'stats'; loadStats();"
+                      :class="activeTab === 'stats' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>Statistiques (KPI)</span>
+              </button>
+
               <button @click="activeTab = 'projets'"
                       :class="activeTab === 'projets' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2">
+                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2 whitespace-nowrap">
                 <i class="fa-solid fa-diagram-project"></i>
                 <span>Projets ({{ projets.length }})</span>
               </button>
 
               <button @click="activeTab = 'utilisateurs'"
                       :class="activeTab === 'utilisateurs' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2">
+                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2 whitespace-nowrap">
                 <i class="fa-solid fa-users"></i>
-                <span>Membres de l'équipe ({{ utilisateurs.length }})</span>
+                <span>Membres ({{ utilisateurs.length }})</span>
               </button>
 
               <button @click="activeTab = 'entreprises'"
                       :class="activeTab === 'entreprises' ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2">
+                      class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2 whitespace-nowrap">
                 <i class="fa-solid fa-building"></i>
                 <span>Mon Entreprise</span>
               </button>
@@ -709,11 +728,16 @@
               <h1 class="text-2xl font-bold text-white">Gestion des Projets</h1>
               <p class="text-sm text-slate-400">Espaces de travail rattachés à {{ currentEntreprise?.nom }}</p>
             </div>
-            <button @click="openProjectModal()"
-                    class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
-              <i class="fa-solid fa-plus"></i>
-              <span>Nouveau Projet</span>
-            </button>
+            <div class="flex items-center gap-3">
+              <span v-if="!isAdmin" class="text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 flex items-center gap-1.5">
+                <i class="fa-solid fa-lock text-slate-500"></i> Création réservée aux Admins
+              </span>
+              <button v-if="isAdmin" @click="openProjectModal()"
+                      class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>Nouveau Projet</span>
+              </button>
+            </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -723,10 +747,10 @@
                 <div class="flex items-start justify-between gap-3 mb-3">
                   <h3 class="font-bold text-lg text-white">{{ proj.nom }}</h3>
                   <div class="flex items-center gap-2">
-                    <button @click="openProjectModal(proj)" class="text-slate-400 hover:text-indigo-400 transition" title="Modifier">
+                    <button v-if="isAdmin" @click="openProjectModal(proj)" class="text-slate-400 hover:text-indigo-400 transition" title="Modifier le projet">
                       <i class="fa-solid fa-pen text-sm"></i>
                     </button>
-                    <button @click="deleteProject(proj._id)" class="text-slate-400 hover:text-rose-400 transition" title="Supprimer">
+                    <button v-if="isAdmin" @click="deleteProject(proj._id)" class="text-slate-400 hover:text-rose-400 transition" title="Supprimer le projet">
                       <i class="fa-solid fa-trash-can text-sm"></i>
                     </button>
                   </div>
@@ -775,11 +799,16 @@
               <h1 class="text-2xl font-bold text-white">Équipe & Utilisateurs</h1>
               <p class="text-sm text-slate-400">Collaborateurs exclusifs à {{ currentEntreprise?.nom }}</p>
             </div>
-            <button @click="openUserModal()"
-                    class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
-              <i class="fa-solid fa-user-plus"></i>
-              <span>Ajouter un collaborateur</span>
-            </button>
+            <div class="flex items-center gap-3">
+              <span v-if="!isAdmin" class="text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 flex items-center gap-1.5">
+                <i class="fa-solid fa-lock text-slate-500"></i> Ajout de membre réservé aux Admins
+              </span>
+              <button v-if="isAdmin" @click="openUserModal()"
+                      class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
+                <i class="fa-solid fa-user-plus"></i>
+                <span>Ajouter un collaborateur</span>
+              </button>
+            </div>
           </div>
 
           <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow">
@@ -809,8 +838,11 @@
                     </td>
                     <td class="px-6 py-4 text-slate-400">{{ user.email }}</td>
                     <td class="px-6 py-4">
-                      <span class="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
-                        {{ user.role || 'Membre' }}
+                      <span v-if="user.role === 'Admin'" class="px-2.5 py-1 rounded-md text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 inline-flex items-center gap-1">
+                        <i class="fa-solid fa-crown text-[9px]"></i> Admin
+                      </span>
+                      <span v-else class="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
+                        {{ user.role || 'Collaborateur' }}
                       </span>
                     </td>
                     <td class="px-6 py-4">
@@ -826,12 +858,13 @@
                     </td>
                     <td class="px-6 py-4 text-right">
                       <div class="flex items-center justify-end gap-3">
-                        <button @click="openUserModal(user)" class="text-slate-400 hover:text-indigo-400 transition" title="Modifier">
+                        <button v-if="isAdmin" @click="openUserModal(user)" class="text-slate-400 hover:text-indigo-400 transition" title="Modifier">
                           <i class="fa-solid fa-pen text-sm"></i>
                         </button>
-                        <button v-if="user._id !== currentUser._id" @click="deleteUser(user._id)" class="text-slate-400 hover:text-rose-400 transition" title="Supprimer">
+                        <button v-if="isAdmin && user._id !== currentUser._id" @click="deleteUser(user._id)" class="text-slate-400 hover:text-rose-400 transition" title="Supprimer">
                           <i class="fa-solid fa-trash-can text-sm"></i>
                         </button>
+                        <span v-if="!isAdmin" class="text-xs text-slate-500 italic">Lecture seule</span>
                       </div>
                     </td>
                   </tr>
@@ -868,7 +901,7 @@
                   <p class="text-xs text-indigo-400">{{ currentEntreprise?.secteur || 'SaaS' }}</p>
                 </div>
               </div>
-              <button @click="openEntrepriseModal(currentEntreprise)" class="px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-600 bg-slate-800 text-xs font-semibold text-slate-200 transition">
+              <button v-if="isAdmin" @click="openEntrepriseModal(currentEntreprise)" class="px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-600 bg-slate-800 text-xs font-semibold text-slate-200 transition">
                 <i class="fa-solid fa-pen mr-1"></i> Modifier
               </button>
             </div>
@@ -897,10 +930,338 @@
               <button @click="logout" class="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 transition">
                 <i class="fa-solid fa-arrow-right-from-bracket"></i> Changer d'organisation / Se déconnecter
               </button>
-              <button @click="deleteEntreprise(currentEntreprise?._id)" class="text-xs text-rose-400 hover:underline flex items-center gap-1 transition">
+              <button v-if="isAdmin" @click="deleteEntreprise(currentEntreprise?._id)" class="text-xs text-rose-400 hover:underline flex items-center gap-1 transition">
                 <i class="fa-solid fa-triangle-exclamation"></i> Supprimer définitivement l'organisation
               </button>
+              <span v-else class="text-xs text-slate-500 italic">Actions d'administration réservées à l'Admin</span>
             </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 5. VUE STATISTIQUES & DASHBOARD KPI (NOUVEAU) -->
+        <!-- ========================================== -->
+        <section v-if="activeTab === 'stats'">
+          <!-- En-tête -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+                <i class="fa-solid fa-chart-pie text-indigo-400"></i>
+                <span>Tableau de Bord Analytique & KPI</span>
+              </h1>
+              <p class="text-sm text-slate-400 mt-1">
+                Indicateurs de performance, état d'avancement global et charge de travail de l'équipe pour <strong class="text-white">{{ currentEntreprise?.nom }}</strong>.
+              </p>
+            </div>
+            <div class="flex items-center gap-3">
+              <button @click="loadStats()" :disabled="loadingStats"
+                      class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold transition flex items-center gap-2">
+                <i class="fa-solid fa-arrows-rotate" :class="{'fa-spin': loadingStats}"></i>
+                <span>Actualiser les métriques</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Loader si les statistiques sont en cours de chargement -->
+          <div v-if="loadingStats && !stats" class="py-20 text-center text-slate-400">
+            <i class="fa-solid fa-spinner fa-spin text-3xl text-indigo-400 mb-3"></i>
+            <p class="text-sm">Calcul des indicateurs en temps réel...</p>
+          </div>
+
+          <div v-else-if="stats" class="space-y-6">
+
+            <!-- 1. GRILLE DES 4 CARTES KPI SYNTHÉTIQUES -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              
+              <!-- KPI 1 : Projets Actifs -->
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Projets Actifs</span>
+                  <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                    <i class="fa-solid fa-folder-tree text-lg"></i>
+                  </div>
+                </div>
+                <div class="text-3xl font-black text-white mb-1">
+                  {{ stats.projetsCount }}
+                </div>
+                <div class="text-xs text-slate-400 flex items-center gap-1">
+                  <i class="fa-solid fa-layer-group text-indigo-400 text-[10px]"></i>
+                  <span>Espaces de travail isolés</span>
+                </div>
+              </div>
+
+              <!-- KPI 2 : Taux d'Avancement Global -->
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Avancement Global</span>
+                  <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <i class="fa-solid fa-rocket text-lg"></i>
+                  </div>
+                </div>
+                <div class="text-3xl font-black text-emerald-400 mb-1 flex items-baseline gap-2">
+                  <span>{{ stats.tauxAvancementGlobal }}%</span>
+                  <span class="text-xs font-normal text-slate-400">complété</span>
+                </div>
+                <!-- Mini jauge visuelle -->
+                <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-2">
+                  <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
+                       :style="{ width: stats.tauxAvancementGlobal + '%' }"></div>
+                </div>
+                <div class="text-[11px] text-slate-400 mt-2">
+                  {{ stats.tachesParStatut.done }} / {{ stats.totalTaches }} tâches finalisées
+                </div>
+              </div>
+
+              <!-- KPI 3 : Total Tâches & Flux Kanban -->
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Volume des Tâches</span>
+                  <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+                    <i class="fa-solid fa-list-check text-lg"></i>
+                  </div>
+                </div>
+                <div class="text-3xl font-black text-white mb-1">
+                  {{ stats.totalTaches }}
+                </div>
+                <div class="flex items-center gap-1.5 mt-2 text-[10px] flex-wrap">
+                  <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                    {{ stats.tachesParStatut.todo }} à faire
+                  </span>
+                  <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    {{ stats.tachesParStatut.in_progress }} en cours
+                  </span>
+                  <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    {{ stats.tachesParStatut.done }} finies
+                  </span>
+                </div>
+              </div>
+
+              <!-- KPI 4 : Membres & Disponibilité -->
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Membres Actifs</span>
+                  <div class="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center">
+                    <i class="fa-solid fa-users text-lg"></i>
+                  </div>
+                </div>
+                <div class="text-3xl font-black text-white mb-1">
+                  {{ stats.membresCount }}
+                </div>
+                <div class="text-xs text-slate-400 mt-1">
+                  Charge moyenne : 
+                  <strong class="text-slate-200">
+                    {{ stats.membresCount > 0 ? (stats.totalTaches / stats.membresCount).toFixed(1) : 0 }}
+                  </strong> tâches / membre
+                </div>
+              </div>
+
+            </div>
+
+            <!-- 2. DEUX CARTES D'ANALYSE DÉTAILLÉE (CYCLE DE VIE & PRIORITÉS) -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              <!-- Carte Répartition Kanban -->
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg">
+                <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                  <i class="fa-solid fa-bars-progress text-indigo-400"></i>
+                  <span>Répartition du Flux Kanban</span>
+                </h3>
+
+                <div class="space-y-4">
+                  <!-- À faire -->
+                  <div>
+                    <div class="flex items-center justify-between text-xs mb-1.5">
+                      <span class="text-slate-300 font-semibold flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        À faire (Todo)
+                      </span>
+                      <span class="text-slate-400 font-mono">
+                        {{ stats.tachesParStatut.todo }} ({{ stats.totalTaches > 0 ? Math.round((stats.tachesParStatut.todo / stats.totalTaches) * 100) : 0 }}%)
+                      </span>
+                    </div>
+                    <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div class="h-full bg-slate-400 rounded-full transition-all duration-500"
+                           :style="{ width: (stats.totalTaches > 0 ? (stats.tachesParStatut.todo / stats.totalTaches) * 100 : 0) + '%' }"></div>
+                    </div>
+                  </div>
+
+                  <!-- En cours -->
+                  <div>
+                    <div class="flex items-center justify-between text-xs mb-1.5">
+                      <span class="text-amber-400 font-semibold flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                        En cours (In Progress)
+                      </span>
+                      <span class="text-slate-400 font-mono">
+                        {{ stats.tachesParStatut.in_progress }} ({{ stats.totalTaches > 0 ? Math.round((stats.tachesParStatut.in_progress / stats.totalTaches) * 100) : 0 }}%)
+                      </span>
+                    </div>
+                    <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div class="h-full bg-amber-500 rounded-full transition-all duration-500"
+                           :style="{ width: (stats.totalTaches > 0 ? (stats.tachesParStatut.in_progress / stats.totalTaches) * 100 : 0) + '%' }"></div>
+                    </div>
+                  </div>
+
+                  <!-- Terminé -->
+                  <div>
+                    <div class="flex items-center justify-between text-xs mb-1.5">
+                      <span class="text-emerald-400 font-semibold flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                        Terminé (Done)
+                      </span>
+                      <span class="text-slate-400 font-mono">
+                        {{ stats.tachesParStatut.done }} ({{ stats.totalTaches > 0 ? Math.round((stats.tachesParStatut.done / stats.totalTaches) * 100) : 0 }}%)
+                      </span>
+                    </div>
+                    <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div class="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                           :style="{ width: (stats.totalTaches > 0 ? (stats.tachesParStatut.done / stats.totalTaches) * 100 : 0) + '%' }"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="stats.tachesNonAssignees > 0" class="mt-4 pt-3 border-t border-slate-800 text-xs text-amber-400/90 flex items-center gap-2">
+                  <i class="fa-solid fa-triangle-exclamation"></i>
+                  <span>{{ stats.tachesNonAssignees }} tâche(s) orpheline(s) sans collaborateur assigné.</span>
+                </div>
+              </div>
+
+              <!-- Carte Répartition par Priorité -->
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg">
+                <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                  <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+                  <span>Répartition par Priorité</span>
+                </h3>
+
+                <div class="grid grid-cols-3 gap-3 pt-2">
+                  <div class="bg-slate-950/70 border border-rose-500/20 rounded-xl p-4 text-center">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-rose-400 block mb-1">Urgente / Haute</span>
+                    <span class="text-2xl font-black text-white">{{ stats.tachesParPriorite.high }}</span>
+                    <span class="text-[10px] text-slate-500 block mt-1">critique(s)</span>
+                  </div>
+
+                  <div class="bg-slate-950/70 border border-amber-500/20 rounded-xl p-4 text-center">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-amber-400 block mb-1">Moyenne</span>
+                    <span class="text-2xl font-black text-white">{{ stats.tachesParPriorite.medium }}</span>
+                    <span class="text-[10px] text-slate-500 block mt-1">charge standard</span>
+                  </div>
+
+                  <div class="bg-slate-950/70 border border-slate-700/40 rounded-xl p-4 text-center">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Basse</span>
+                    <span class="text-2xl font-black text-white">{{ stats.tachesParPriorite.low }}</span>
+                    <span class="text-[10px] text-slate-500 block mt-1">secondaire(s)</span>
+                  </div>
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                  <span>Proportion de tâches critiques :</span>
+                  <strong class="text-rose-400 font-mono">
+                    {{ stats.totalTaches > 0 ? Math.round((stats.tachesParPriorite.high / stats.totalTaches) * 100) : 0 }}%
+                  </strong>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- 3. TABLEAU DE LA CHARGE DE TRAVAIL PAR MEMBRE DE L'ÉQUIPE -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+              <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-users-gear text-indigo-400"></i>
+                    <span>Charge de Travail par Membre de l'Équipe</span>
+                  </h3>
+                  <p class="text-xs text-slate-400 mt-0.5">
+                    Suivi nominatif de l'allocation des tâches et taux de complétion par collaborateur
+                  </p>
+                </div>
+                <span class="text-xs font-semibold px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  {{ stats.chargeMembres.length }} collaborateur(s)
+                </span>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                  <thead class="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                    <tr>
+                      <th class="px-6 py-3.5 font-semibold">Collaborateur</th>
+                      <th class="px-6 py-3.5 font-semibold">Rôle</th>
+                      <th class="px-6 py-3.5 font-semibold text-center">Tâches Assignées</th>
+                      <th class="px-6 py-3.5 font-semibold text-center">À faire / En cours / Terminées</th>
+                      <th class="px-6 py-3.5 font-semibold">Taux de Complétion</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-800">
+                    <tr v-for="m in stats.chargeMembres" :key="m._id" class="hover:bg-slate-800/40 transition">
+                      
+                      <!-- Nom et avatar -->
+                      <td class="px-6 py-4 font-medium text-white flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-indigo-600 text-xs font-bold text-white flex items-center justify-center">
+                          {{ getInitials(m.nom) }}
+                        </div>
+                        <div>
+                          <div class="font-semibold">{{ m.nom }}</div>
+                          <div class="text-[11px] text-slate-400">{{ m.email }}</div>
+                        </div>
+                      </td>
+
+                      <!-- Rôle RBAC -->
+                      <td class="px-6 py-4">
+                        <span v-if="m.role === 'Admin'" class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                          <i class="fa-solid fa-crown text-[9px] mr-1"></i> Admin
+                        </span>
+                        <span v-else class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                          {{ m.role || 'Collaborateur' }}
+                        </span>
+                      </td>
+
+                      <!-- Nombre total de tâches -->
+                      <td class="px-6 py-4 text-center">
+                        <span class="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-full font-bold text-xs bg-slate-800 border border-slate-700 text-white">
+                          {{ m.total }}
+                        </span>
+                      </td>
+
+                      <!-- Découpage Todo / In Progress / Done -->
+                      <td class="px-6 py-4 text-center">
+                        <div class="inline-flex items-center gap-1.5 text-xs">
+                          <span class="px-2 py-0.5 rounded bg-slate-950 text-slate-400 border border-slate-800" title="À faire">
+                            {{ m.todo }} à faire
+                          </span>
+                          <span class="px-2 py-0.5 rounded bg-amber-950/60 text-amber-400 border border-amber-800/40" title="En cours">
+                            {{ m.in_progress }} en cours
+                          </span>
+                          <span class="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40" title="Terminées">
+                            {{ m.done }} finies
+                          </span>
+                        </div>
+                      </td>
+
+                      <!-- Taux de complétion -->
+                      <td class="px-6 py-4">
+                        <div class="flex items-center gap-3">
+                          <div class="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden max-w-[120px]">
+                            <div class="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                                 :style="{ width: m.tauxCompletion + '%' }"></div>
+                          </div>
+                          <span class="text-xs font-mono font-semibold text-slate-300">
+                            {{ m.tauxCompletion }}%
+                          </span>
+                        </div>
+                      </td>
+
+                    </tr>
+
+                    <tr v-if="stats.chargeMembres.length === 0">
+                      <td colspan="5" class="px-6 py-10 text-center text-slate-500 text-xs">
+                        Aucun membre trouvé dans cette entreprise.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
         </section>
 
@@ -1124,9 +1485,12 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Poste / Rôle</label>
-            <input v-model="modals.user.form.role" type="text" placeholder="Ex: Ingénieur DevOps, Développeur Vue..."
-                   class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+            <label class="block text-xs font-medium text-slate-300 mb-1">Rôle et Permissions *</label>
+            <select v-model="modals.user.form.role" required
+                    class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              <option value="Collaborateur">Collaborateur (Gestion des tâches, tableau Kanban)</option>
+              <option value="Admin">Admin (Tous les droits : création & suppression projets et membres)</option>
+            </select>
           </div>
 
           <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
@@ -1297,10 +1661,29 @@
         const projets = ref([]);
         const utilisateurs = ref([]);
         const taches = ref([]);
+        const stats = ref(null);
+        const loadingStats = ref(false);
 
         const selectedProjetId = ref('');
         const activeTab = ref('kanban');
         const loading = ref(false);
+
+        // Permissions RBAC
+        const isAdmin = computed(() => {
+          return currentUser.value?.role === 'Admin';
+        });
+
+        // Headers d'authentification et d'isolation multi-tenant (RBAC + Tenant Isolation)
+        const getAuthHeaders = () => {
+          const headers = { 'Content-Type': 'application/json' };
+          if (currentUser.value?._id) {
+            headers['X-User-Id'] = currentUser.value._id;
+          }
+          if (currentEntreprise.value?._id) {
+            headers['X-Entreprise-Id'] = currentEntreprise.value._id;
+          }
+          return headers;
+        };
 
         // Toast
         const toast = ref({ show: false, message: '', type: 'success' });
@@ -1460,16 +1843,38 @@
           loading.value = true;
           try {
             const [pRes, uRes] = await Promise.all([
-              fetch(`/api/projets?entrepriseId=${entId}`),
-              fetch(`/api/utilisateurs?entrepriseId=${entId}`)
+              fetch(`/api/projets?entrepriseId=${entId}`, { headers: getAuthHeaders() }),
+              fetch(`/api/utilisateurs?entrepriseId=${entId}`, { headers: getAuthHeaders() })
             ]);
             projets.value = await pRes.json();
             utilisateurs.value = await uRes.json();
             await loadTasks();
+            await loadStats();
           } catch (err) {
             showToast('Erreur chargement des données', 'error');
           } finally {
             loading.value = false;
+          }
+        };
+
+        const loadStats = async () => {
+          if (!currentEntreprise.value) return;
+          loadingStats.value = true;
+          try {
+            const res = await fetch(`/api/stats?entrepriseId=${currentEntreprise.value._id}`, {
+              headers: getAuthHeaders()
+            });
+            if (res.ok) {
+              stats.value = await res.json();
+            } else {
+              const errData = await res.json().catch(() => ({}));
+              showToast(errData.error || 'Erreur calcul des statistiques', 'error');
+            }
+          } catch (e) {
+            console.error(e);
+            showToast('Erreur chargement des statistiques', 'error');
+          } finally {
+            loadingStats.value = false;
           }
         };
 
@@ -1721,18 +2126,21 @@
             if (modals.value.project.isEdit) {
               res = await fetch(`/api/projets/${modals.value.project.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(body)
               });
             } else {
               res = await fetch('/api/projets', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(body)
               });
             }
 
-            if (!res.ok) throw new Error((await res.json()).error);
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || 'Erreur lors de la sauvegarde du projet');
+            }
             showToast(modals.value.project.isEdit ? 'Projet mis à jour' : 'Projet créé');
             modals.value.project.show = false;
             await loadTenantData();
@@ -1744,13 +2152,19 @@
         const deleteProject = async (projId) => {
           if (!confirm('Supprimer ce projet ? Toutes ses tâches Kanban seront également supprimées.')) return;
           try {
-            const res = await fetch(`/api/projets/${projId}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error();
+            const res = await fetch(`/api/projets/${projId}`, { 
+              method: 'DELETE',
+              headers: getAuthHeaders()
+            });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || 'Erreur lors de la suppression du projet');
+            }
             showToast('Projet et tâches supprimés');
             if (selectedProjetId.value === projId) selectedProjetId.value = '';
             await loadTenantData();
           } catch (err) {
-            showToast('Erreur suppression projet', 'error');
+            showToast(err.message, 'error');
           }
         };
 
@@ -1763,14 +2177,14 @@
               show: true,
               isEdit: true,
               id: u._id,
-              form: { nom: u.nom, email: u.email, role: u.role || '' }
+              form: { nom: u.nom, email: u.email, role: u.role || 'Collaborateur' }
             };
           } else {
             modals.value.user = {
               show: true,
               isEdit: false,
               id: null,
-              form: { nom: '', email: '', role: '' }
+              form: { nom: '', email: '', role: 'Collaborateur' }
             };
           }
         };
@@ -1781,7 +2195,7 @@
             entrepriseId: currentEntreprise.value._id,
             nom: form.nom,
             email: form.email,
-            role: form.role
+            role: form.role || 'Collaborateur'
           };
 
           try {
@@ -1789,18 +2203,21 @@
             if (modals.value.user.isEdit) {
               res = await fetch(`/api/utilisateurs/${modals.value.user.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(body)
               });
             } else {
               res = await fetch('/api/utilisateurs', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(body)
               });
             }
 
-            if (!res.ok) throw new Error((await res.json()).error);
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || 'Erreur lors de la sauvegarde du collaborateur');
+            }
             showToast(modals.value.user.isEdit ? 'Collaborateur mis à jour' : 'Collaborateur ajouté');
             modals.value.user.show = false;
             await loadTenantData();
@@ -1812,12 +2229,20 @@
         const deleteUser = async (userId) => {
           if (!confirm('Supprimer cet utilisateur ? Il sera retiré des projets et ses tâches seront désassignées.')) return;
           try {
-            const res = await fetch(`/api/utilisateurs/${userId}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error();
+            const res = await fetch(`/api/utilisateurs/${userId}`, { 
+              method: 'DELETE',
+              headers: getAuthHeaders()
+            });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || 'Erreur lors de la suppression du collaborateur');
+            }
             showToast('Utilisateur supprimé');
             await loadTenantData();
           } catch (err) {
-            showToast('Erreur suppression utilisateur', 'error');
+            showToast(err.message, 'error');
+          }
+        };
           }
         };
 
@@ -2036,6 +2461,10 @@
           projets,
           utilisateurs,
           taches,
+          stats,
+          loadingStats,
+          loadStats,
+          isAdmin,
           selectedProjetId,
           activeTab,
           loading,

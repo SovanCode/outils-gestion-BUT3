@@ -56,6 +56,12 @@ L'onglet **"Nouvel Espace / Inscription"** permet également de créer un nouvea
 
 ## ⚡ Fonctionnalités Clés
 
+- **Gestion des Rôles & Permissions (RBAC) :**
+  - Rôle **Admin** : création & suppression des projets et collaborateurs (privilèges complets).
+  - Rôle **Collaborateur** : accès opérationnel focalisé sur les tâches et le Kanban (boutons sensibles masqués dynamiquement côté Vue.js et protégés par middleware backend `requireAdmin`).
+- **Tableau de Bord Analytique & Dashboard KPI (`/api/stats`) :**
+  - Calcul dynamique par tenant du taux d'avancement global, total des projets, flux Kanban et répartition des priorités.
+  - Suivi nominatif de la **charge de travail par membre de l'équipe** (nombre de tâches assignées, décompte par statut et taux de complétion individuel).
 - **Tableau Kanban Dynamique :**
   - 3 colonnes : *À faire*, *En cours*, *Terminé* avec compteurs d'items en temps réel.
   - **Drag & Drop natif HTML5** : glissez-déposez les cartes d'une colonne à une autre.

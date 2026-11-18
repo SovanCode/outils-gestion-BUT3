@@ -66,6 +66,18 @@ Dès la connexion validée :
   - Date d'échéance optionnelle.
 - **Filtre par projet :** Possibilité de filtrer le tableau Kanban sur un projet spécifique ou d'afficher toutes les tâches de l'entreprise.
 
+### 3.5. Contrôle d'Accès Basé sur les Rôles (RBAC)
+- **Rôle Administrateur (`Admin`) :** Accès complet à l'espace de l'entreprise. Seuls les administrateurs ont le droit de créer ou supprimer des projets, ainsi que d'ajouter ou supprimer des collaborateurs.
+- **Rôle Collaborateur (`Collaborateur`) :** Accès opérationnel centré sur la gestion des tâches et du tableau Kanban. Les boutons d'actions d'administration (création de projet, suppression, corbeilles de membres) sont masqués dynamiquement côté frontend, et toute tentative d'appel API non autorisé est rejetée par le backend avec une erreur `403 Forbidden`.
+
+### 3.6. Tableau de Bord Analytique & Dashboard KPI
+- **Onglet Dédié "Statistiques" :**
+  - **Cartes KPI Synthétiques :** Nombre total de projets actifs, pourcentage d'avancement global (`tâches terminées / total tâches * 100`), volume global de tâches et nombre de membres actifs.
+  - **Jauge d'Avancement Global :** Visualisation dynamique de la progression globale du projet d'entreprise.
+  - **Répartition du Flux Kanban :** Graphiques de répartition des statuts (*À faire*, *En cours*, *Terminé*) et détection des tâches orphelines (non assignées).
+  - **Répartition par Niveau de Priorité :** Synthèse visuelle des tâches critiques (Urgentes), standard (Moyennes) et secondaires (Basses).
+  - **Charge de Travail par Membre de l'Équipe :** Tableau nominatif recensant pour chaque collaborateur le nombre de tâches assignées, le détail par statut et le taux de complétion individuel.
+
 ---
 
 ## 4. Données de Démonstration & Facilité d'Évaluation
