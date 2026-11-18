@@ -16,6 +16,8 @@ services:
     restart: unless-stopped
     ports:
       - "5000:5000"
+    volumes:
+      - ./public:/app/public
     env_file:
       - config.env
     environment:
