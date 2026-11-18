@@ -1553,7 +1553,7 @@
     </div>
 
     <!-- 5. MODALE HISTORIQUE DES LOGS (AVANT / APRÈS) -->
-    <div v-if="modals.logs.show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+    <div v-if="modals.logs.show" @click.self="closeTaskLogsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl flex flex-col max-h-[85vh]">
         <div class="flex items-center justify-between pb-4 border-b border-slate-800">
           <div class="flex items-center gap-2.5">
@@ -1565,58 +1565,69 @@
               <p class="text-xs text-slate-400 font-medium">Tâche : <span class="text-slate-200">{{ modals.logs.task?.titre }}</span></p>
             </div>
           </div>
-          <button @click="modals.logs.show = false" class="text-slate-400 hover:text-white transition p-1">
+          <button @click="closeTaskLogsModal" type="button" class="text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-800" title="Fermer la modale">
             <i class="fa-solid fa-xmark text-lg"></i>
           </button>
         </div>
 
         <div class="flex-1 overflow-y-auto my-4 pr-1 space-y-3">
+          <!-- État 1 : Chargement en cours -->
           <div v-if="modals.logs.loading" class="py-12 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-            <i class="fa-solid fa-circle-notch fa-spin"></i> Chargement de l'historique...
+            <i class="fa-solid fa-circle-notch fa-spin text-amber-400"></i>
+            <span>Chargement de l'historique...</span>
           </div>
           
-          <div v-else-if="modals.logs.items.length === 0" class="py-12 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
-            Aucun historique enregistré pour le moment.
+          <!-- État 2 : Aucun historique enregistré (Affiché UNIQUEMENT si le tableau est vide) -->
+          <div v-else-if="!modals.logs.items || modals.logs.items.length === 0" class="py-12 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+            <i class="fa-regular fa-clock text-2xl text-slate-600 block mb-2"></i>
+            <span>Aucun historique enregistré pour cette tâche.</span>
           </div>
 
-          <div v-for="log in modals.logs.items" :key="log._id" 
-               class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 space-y-2 text-xs">
-            <div class="flex items-center justify-between gap-2 border-b border-slate-800/60 pb-2">
-              <div class="flex items-center gap-2">
-                <div class="w-6 h-6 rounded-full bg-indigo-700 text-[10px] font-bold text-white flex items-center justify-center">
-                  {{ getInitials(log.auteur?.nom) }}
+          <!-- État 3 : Liste des cartes de logs avec directive v-for (enveloppée dans un v-else strict) -->
+          <div v-else class="space-y-3">
+            <div v-for="log in modals.logs.items" :key="log._id" 
+                 class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 space-y-2 text-xs">
+              <!-- En-tête du log avec alignement flex, gap-3 et avatar shrink-0 pour éviter tout chevauchement -->
+              <div class="flex items-center justify-between gap-3 border-b border-slate-800/60 pb-2">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-7 h-7 shrink-0 rounded-full bg-indigo-700 text-[10px] font-bold text-white flex items-center justify-center shadow">
+                    {{ getInitials(log.auteur?.nom) }}
+                  </div>
+                  <div class="flex items-center gap-1.5 min-w-0 truncate">
+                    <span class="font-semibold text-slate-200 truncate">{{ log.auteur?.nom || 'Utilisateur système' }}</span>
+                    <span class="text-[11px] text-slate-400 shrink-0">({{ log.auteur?.role || 'Collaborateur' }})</span>
+                  </div>
                 </div>
-                <span class="font-semibold text-slate-200">{{ log.auteur?.nom || 'Utilisateur système' }}</span>
-                <span class="text-[11px] text-slate-400">({{ log.auteur?.role || 'Collaborateur' }})</span>
-              </div>
-              <span class="text-[11px] text-slate-500">{{ formatDate(log.dateAction) }}</span>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider"
-                    :class="getLogBadgeClass(log.action)">
-                {{ formatLogAction(log.action) }}
-              </span>
-              <span class="text-slate-300 font-medium">{{ log.message }}</span>
-            </div>
-
-            <!-- COMPARAISON AVANT / APRÈS -->
-            <div v-if="log.valeurAvant !== null || log.valeurApres !== null" class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-800/50">
-              <div class="bg-rose-950/20 border border-rose-900/30 rounded-lg p-2.5">
-                <span class="block text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-1 flex items-center gap-1">
-                  <i class="fa-solid fa-arrow-left"></i> Avant
-                </span>
-                <div class="text-slate-300 break-words whitespace-pre-wrap font-mono text-[11px]">
-                  {{ formatLogValue(log.champModifie, log.valeurAvant) }}
-                </div>
+                <span class="text-[11px] text-slate-500 shrink-0 font-mono">{{ formatDate(log.dateAction) }}</span>
               </div>
 
-              <div class="bg-emerald-950/20 border border-emerald-900/30 rounded-lg p-2.5">
-                <span class="block text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1 flex items-center gap-1">
-                  <i class="fa-solid fa-arrow-right"></i> Après
+              <!-- Action & message -->
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider shrink-0"
+                      :class="getLogBadgeClass(log.action)">
+                  {{ formatLogAction(log.action) }}
                 </span>
-                <div class="text-slate-300 break-words whitespace-pre-wrap font-mono text-[11px]">
-                  {{ formatLogValue(log.champModifie, log.valeurApres) }}
+                <span class="text-slate-300 font-medium break-words">{{ log.message }}</span>
+              </div>
+
+              <!-- COMPARAISON AVANT / APRÈS -->
+              <div v-if="log.valeurAvant !== null || log.valeurApres !== null" class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-800/50">
+                <div class="bg-rose-950/20 border border-rose-900/30 rounded-lg p-2.5">
+                  <span class="block text-[10px] font-bold uppercase tracking-wider text-rose-400 mb-1 flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-left"></i> Avant
+                  </span>
+                  <div class="text-slate-300 break-words whitespace-pre-wrap font-mono text-[11px]">
+                    {{ formatLogValue(log.champModifie, log.valeurAvant) }}
+                  </div>
+                </div>
+
+                <div class="bg-emerald-950/20 border border-emerald-900/30 rounded-lg p-2.5">
+                  <span class="block text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1 flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-right"></i> Après
+                  </span>
+                  <div class="text-slate-300 break-words whitespace-pre-wrap font-mono text-[11px]">
+                    {{ formatLogValue(log.champModifie, log.valeurApres) }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1624,7 +1635,8 @@
         </div>
 
         <div class="pt-3 border-t border-slate-800 flex justify-end">
-          <button @click="modals.logs.show = false"
+          <button @click="closeTaskLogsModal"
+                  type="button"
                   class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition">
             Fermer
           </button>
@@ -1980,7 +1992,9 @@
             items: []
           };
           try {
-            const res = await fetch(`/api/taches/${task._id}/logs`);
+            const res = await fetch(`/api/taches/${task._id}/logs`, {
+              headers: getAuthHeaders()
+            });
             if (!res.ok) throw new Error();
             modals.value.logs.items = await res.json();
           } catch (err) {
@@ -1988,6 +2002,13 @@
           } finally {
             modals.value.logs.loading = false;
           }
+        };
+
+        const closeTaskLogsModal = () => {
+          modals.value.logs.show = false;
+          modals.value.logs.loading = false;
+          modals.value.logs.items = [];
+          modals.value.logs.task = null;
         };
 
         const saveTask = async () => {
@@ -2502,6 +2523,7 @@
           getBlockedReason,
           getUnfinishedDeps,
           openTaskLogsModal,
+          closeTaskLogsModal,
           formatStatusName,
           formatLogAction,
           getLogBadgeClass,
